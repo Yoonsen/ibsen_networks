@@ -250,7 +250,7 @@ function NetworkSection({ title, network, femaleMap, width = 420, height = 420, 
   )
 }
 
-function StatsPanel({ play, selectedActWordCounts }) {
+function StatsPanel({ play, selectedActWordCounts, onShowDialogList }) {
   if (!play) return null
   const bechdel = play.bechdel
   const dialogs = play.dialogs ?? []
@@ -329,6 +329,22 @@ function StatsPanel({ play, selectedActWordCounts }) {
           <p style={{ color: THEME.subtle }}>
             Heuristikk (female dialogs / uten mannlige pronomen): {bechdel?.female_dialog_count ?? 0} / {bechdel?.female_dialogs_no_male_pron ?? 0} → <strong>{hStatus}</strong>
           </p>
+          {femaleDialogs.length > 0 && (
+            <button
+              onClick={() => onShowDialogList?.(femaleDialogs, play.title)}
+              style={{
+                marginTop: '0.35rem',
+                padding: '0.45rem 0.6rem',
+                borderRadius: '8px',
+                border: `1px solid ${THEME.border}`,
+                background: THEME.accentSoft,
+                color: THEME.text,
+                cursor: 'pointer',
+              }}
+            >
+              Vis kvinnelige dialoger ({femaleDialogs.length})
+            </button>
+          )}
         </div>
 
         {topWords.length > 0 && (
@@ -505,6 +521,81 @@ function InfoModal({ open, onClose }) {
   )
 }
 
+function DialogModal({ open, onClose, dialogs = [], title }) {
+  if (!open) return null
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.35)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '1rem',
+      }}
+    >
+      <div
+        style={{
+          background: THEME.card,
+          borderRadius: '14px',
+          border: `1px solid ${THEME.border}`,
+          boxShadow: THEME.shadow,
+          maxWidth: '820px',
+          width: '100%',
+          padding: '1.25rem',
+          maxHeight: '80vh',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.75rem',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>{title || 'Dialoger'}</h3>
+            <p style={{ margin: 0, color: THEME.subtle }}>{dialogs.length} dialoger (kvinnelige par)</p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              border: 'none',
+              background: THEME.accentSoft,
+              color: THEME.accent,
+              borderRadius: '999px',
+              padding: '0.35rem 0.65rem',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Lukk
+          </button>
+        </div>
+
+        <div style={{ overflowY: 'auto', paddingRight: '0.25rem', flex: 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {dialogs.map((d, idx) => (
+              <div key={idx} style={{ border: `1px solid ${THEME.border}`, borderRadius: '10px', padding: '0.65rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <strong>{d.speakers?.join(' ↔ ')}</strong>
+                  <span style={{ color: THEME.subtle }}>Akt {d.act}, Scene {d.scene}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.35rem', color: THEME.subtle }}>
+                  <span>Lengde (turer): {d.length ?? '–'}</span>
+                  <span>Ord: {d.total_words ?? '–'}</span>
+                  <span>M-pron: {d.male_pron ?? 0}</span>
+                  <span>F-pron: {d.female_pron ?? 0}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -515,6 +606,7 @@ function App() {
   )
   const [showInfo, setShowInfo] = useState(false)
   const [sortKey, setSortKey] = useState('female-nodes')
+  const [dialogModal, setDialogModal] = useState({ open: false, dialogs: [], title: '' })
 
   useEffect(() => {
     fetch('./ibsen_networks.json')
@@ -602,6 +694,10 @@ function App() {
   const actOptions = selectedPlay?.acts ?? []
   const actData = actOptions.find(a => a.act_n === selectedAct)
   const actWordCounts = actData?.word_counts
+
+  const handleShowDialogList = (dialogs, title) => {
+    setDialogModal({ open: true, dialogs: dialogs ?? [], title: displayTitle(title) })
+  }
 
   const sortedPlays = useMemo(() => {
     const list = [...playsWithMeta]
@@ -824,12 +920,18 @@ function App() {
               </div>
             </div>
 
-            <StatsPanel play={selectedPlay} selectedActWordCounts={actWordCounts} />
+            <StatsPanel play={selectedPlay} selectedActWordCounts={actWordCounts} onShowDialogList={handleShowDialogList} />
           </>
         )}
       </div>
 
       <InfoModal open={showInfo} onClose={() => setShowInfo(false)} />
+      <DialogModal
+        open={dialogModal.open}
+        dialogs={dialogModal.dialogs}
+        title={dialogModal.title}
+        onClose={() => setDialogModal({ open: false, dialogs: [], title: '' })}
+      />
     </div>
   )
 }
