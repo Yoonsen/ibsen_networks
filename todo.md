@@ -54,3 +54,73 @@
   - [ ] definisjon (actual_pairs / possible_pairs),
   - [ ] tolkning (dramaturgisk tetthet, ikke “komedie” i snever forstand).
 - [ ] Kort tekst om “L-formen” i cast vs dramafaktor.
+
+# TODO
+
+## 1. Per-akt og per-scene-grafer
+
+- Utvide `ibsen_networks.json` til å inkludere struktur per akt/scene:
+  - `acts`: liste med `act`, `scenes`, `cast`, og ev. co-occurrence per scene.
+  - Strukturidé:
+
+    ```json
+    {
+      "id": "Rosmersholm_1886",
+      "title": "Rosmersholm_1886",
+      "speech_network": { ... },
+      "acts": [
+        {
+          "act": 1,
+          "scenes": [
+            {
+              "scene": 1,
+              "cast": ["ROS", "REBEKKA", "KROLL"],
+              "cooccurrence_edges": [
+                { "source": "ROS", "target": "REBEKKA", "weight": 1 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    ```
+
+- I appen:
+  - Legge til panel/meny for å velge:
+    - Hele stykket
+    - Akt-nivå
+    - Scene-nivå
+  - Når akt/scene velges:
+    - filtrere noder og kanter til relevant delsett
+    - vise samme sirkelgraf, men for valgt akt/scene
+  - Brukssak: vise hvordan ensemblet endrer seg mellom akter (musikaler, Ibsen).
+
+## 2. Dramatiske kurver over tid
+
+- Lage “curves” per stykke:
+  - `cast_size` per scene (linjeplott)
+  - `comedy/drama factor` per scene
+  - eventuelt antall aktive kanter (nettverkstetthet) per scene.
+- Visualisere dette som:
+  - enkel tidslinje per stykke
+  - eller “small multiples” for flere stykker.
+
+## 3. UTF-8 / navn-opprydding
+
+- Fikse feilaktige navn som `INSPEKTÃREN ved badet` → `INSPEKTØREN ved badet`:
+  - enten i XML→JSON-pipelinen (riktig encoding og `ensure_ascii=False`)
+  - eller via en “rens” av eksisterende `ibsen_networks.json`:
+    - funksjon ala `s.encode("latin1").decode("utf-8")` på:
+      - `speech_network.nodes[*].id`
+      - `speech_network.edges[*].source/target`.
+
+## 4. Videre grafikk og analyse
+
+- Finere nettverksvisning:
+  - vurdere Cytoscape/d3 for mer interaktiv graf (hover, klikk på node, filtrering).
+- Rolleprofiler:
+  - mer detaljert taletidsfordeling per karakter (andel av total taletid).
+- Sammenlikning på tvers:
+  - scatterplot: `mean_cast` vs `mean_drama` inne i appen.
+  - filtrering på “høy dramafaktor”, få opp typiske Ibsen-triangler.
+
