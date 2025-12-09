@@ -4,48 +4,40 @@
 
 - Frontend: React + Vite (ESM, `type: "module"`).
 - Bygg: `npm run build` → output til `docs/` (for GitHub Pages).
-- Data: statisk JSON-fil `public/ibsen_networks.json` kopieres til `docs/` ved build.
+- Data: statisk JSON-fil `public/ibsen_networks.json` (kopieres til `docs/` ved build).
 - Hosting: GitHub Pages med `base: '/ibsen_networks/'` i `vite.config.js`.
 
 ## Filstruktur (frontend)
 
 - `index.html` – rot for Vite/React.
 - `src/main.jsx` – entrypoint, monterer `<App />`.
-- `src/App.jsx` – hovedkomponent (per nå):
+- `src/App.jsx` – hovedkomponent:
   - laster `./ibsen_networks.json`,
-  - viser liste over skuespill,
-  - viser detaljer for valgt skuespill.
+  - dropdown for stykker (titler uten underscores),
+  - globalt talenettverk + scrollbart panel med ett nettverk per akt,
+  - statistikkpanel (Bechdel, dialoger, ordtall),
+  - info-modal.
 - `public/ibsen_networks.json` – alle nettverksdata.
+- `docs/` – bygget PWA for GitHub Pages.
+- `legacy/DATASTRUCTURE_UPDATE.md` – kontrakt for datastruktur (top-level FEMALE_CHARACTERS, plays med speech/co-nettverk, acts, dialogs, bechdel).
 
-Planlagt utvidelse:
+## UI-arkitektur (nåværende)
 
-- `src/components/PlayList.jsx` – liste / filtrering av stykker.
-- `src/components/PlayStats.jsx` – tabell + små grafer for ett stykke.
-- `src/components/ScatterPlot.jsx` – 2D-plot (mean_cast vs mean_drama).
-- `src/components/NetworkView.jsx` – talenettverk / co-occurrence-nettverk for valgt stykke.
-- `src/components/SceneTimeline.jsx` – oversikt over scener, dramafaktor per scene, hvem som er til stede.
+- Header med tittel, lastet-antall og Info-knapp (modal).
+- Selektor for stykker.
+- Innhold:
+  - Venstre (grid-col 2fr): globalt talenettverk (fargede noder etter kjønn).
+  - Høyre (grid-col 1fr): scrollbart aktpanel med alle akter.
+- Under: statistikk-kort (Bechdel, dialogtall, ordtall stykke/akt).
+- Responsiv: grid → stacked på smale skjermer.
 
-## UI-arkitektur (første versjon)
+## Dataflyt (kort)
 
-Layout:
-
-- Venstre panel:
-  - liste over skuespill (scrollbar),
-  - én valgt om gangen.
-- Høyre panel:
-  - tittel for valgt stykke,
-  - tabell med:
-    - mean_cast,
-    - max_cast,
-    - mean_drama,
-    - n_scenes,
-  - senere: tabs for “Stats”, “Network”, “Scenes”.
-
-Dette gir en stabil base for å la senere versjoner av LLM/assistenten:
-
-- legge til flere komponenter uten å endre grunnlayout,
-- koble på ulike grafbiblioteker (f.eks. Cytoscape.js eller d3),
-- utvide fra enkel liste → full visualiseringsapp.
+1. `App` laster `ibsen_networks.json` én gang på mount.
+2. `FEMALE_CHARACTERS` brukes til å sette node-kjønn (F/M/?).
+3. Globalt nettverk: `play.speech_network`.
+4. Aktpanel: `play.acts[*].speech_network`.
+5. Statistikk: `play.bechdel`, `play.dialogs`, `play.word_counts`, `play.act_word_counts`.
 
 ## Dataflyt
 

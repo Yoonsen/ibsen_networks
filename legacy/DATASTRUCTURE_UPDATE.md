@@ -1,4 +1,4 @@
-# Ibsen PWA – data structure update
+# Ibsen PWA – data structure update (legacy reference)
 
 Dette dokumentet beskriver den **nye strukturen** i `ibsen_networks.json` som PWA-klienten skal bruke.  
 Dataene er generert fra TEI-XML med Python (`ibsen_networks_acts.py`).
@@ -254,3 +254,4 @@ Typiske ting klienten skal gjøre mot denne strukturen:
   ```
 
 Dette er dagens “kontrakt” mellom backend (`ibsen_networks.json`) og PWA-klienten (JS/Codex). Codex kan anta at strukturen er stabil og ferdig definert.
+

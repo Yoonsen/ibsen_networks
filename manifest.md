@@ -1,6 +1,6 @@
 # Ibsen Networks – MANIFEST
 
-Dette prosjektet skal bli en liten nettapp (PWA) som viser Henrik Ibsens skuespill som nettverk.
+Dette prosjektet er en liten nettapp (PWA) som viser Henrik Ibsens skuespill som nettverk, med taleøkologi og kjønnsfargete nettverk.
 
 ## Formål
 
@@ -30,17 +30,20 @@ Målet er at en Ibsen-forsker skal kunne:
   - co-occurrence-nettverk (hvem er på scenen samtidig),
   - aggregert statistikk (mean_drama, mean_cast, max_cast, n_scenes).
 
-## Hva appen skal kunne (første versjon)
+## Hva appen gjør nå
 
-1. Liste alle skuespill med tittel.
-2. La brukeren velge ett skuespill.
-3. Vise grunnstatistikk for valgt stykke:
-   - gjennomsnittlig dramafaktor,
-   - gjennomsnittlig og maksimal cast-størrelse,
-   - antall scener (med minst to på scenen).
-4. Forberede videre visning av:
-   - scatter-plot over alle stykker (mean_cast vs mean_drama),
-   - nettverksgraf for talenettverket i ett stykke,
-   - oversikt over karakterer med taletid og interaksjoner.
+- Nedtrekksmeny for alle stykker (titler vises uten underscores).
+- Globalt talenettverk pr. stykke med noder farget etter kjønn (F=rød, M=blå, ukjent=grå).
+- Alle akter renderes i et scrollbart panel med egne nettverk.
+- Statistikkpanel:
+  - Bechdel-status og dialogtall,
+  - ordtall per stykke og per valgt akt,
+  - kvinnelige dialoger filtrerbare i data.
+- Info-modal som forklarer data og visning.
 
-Prosjektet er tenkt som et utgangspunkt; både data og app skal være enkle å bygge videre på for en senere versjon av LLM (GPT/Cursor/Claude/…).
+## Videre retning / backlog
+
+- Scatter-plot over alle stykker (mean_cast vs mean_drama).
+- Co-occurrence-visning og scenetidslinje.
+- Caching i service worker når datastørrelse krever det.
+- Evt. dark mode / tema-velger.
