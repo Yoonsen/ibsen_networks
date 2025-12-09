@@ -540,6 +540,26 @@ function DialogModal({ open, onClose, dialogs = [], title }) {
     return list.sort(cmp)
   }, [filtered, sortKey])
 
+  const pairStats = useMemo(() => {
+    const map = new Map()
+    for (const d of filtered) {
+      const sp = Array.isArray(d.speakers) ? d.speakers.slice().sort() : []
+      if (sp.length !== 2) continue
+      const key = sp.join(' | ')
+      if (!map.has(key)) {
+        map.set(key, { speakers: sp, dialogs: 0, totalWords: 0, maxLength: 0, totalTurns: 0 })
+      }
+      const rec = map.get(key)
+      rec.dialogs += 1
+      rec.totalWords += d.total_words ?? 0
+      rec.totalTurns += d.length ?? 0
+      rec.maxLength = Math.max(rec.maxLength, d.length ?? 0)
+    }
+    const arr = Array.from(map.values())
+    const maxWords = arr.reduce((m, r) => Math.max(m, r.totalWords), 0)
+    return { pairs: arr.sort((a, b) => b.totalWords - a.totalWords), maxWords }
+  }, [filtered])
+
   return (
     <div
       style={{
@@ -614,6 +634,41 @@ function DialogModal({ open, onClose, dialogs = [], title }) {
         </div>
 
         <div style={{ overflowY: 'auto', paddingRight: '0.25rem', flex: 1 }}>
+          {pairStats.pairs.length > 0 && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <h4 style={{ margin: '0 0 0.35rem 0' }}>Intensitet per par</h4>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'left', padding: '0.35rem' }}>Par</th>
+                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Ord (sum)</th>
+                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Dialoger</th>
+                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Tot. turer</th>
+                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Maks lengde</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pairStats.pairs.map((p, idx) => {
+                      const ratio = pairStats.maxWords > 0 ? p.totalWords / pairStats.maxWords : 0
+                      const bg = ratio === 0 ? '#f8fafc' : `rgba(37, 99, 235, ${0.12 + 0.55 * ratio})`
+                      const color = ratio > 0.6 ? '#0b1f4a' : '#0f172a'
+                      return (
+                        <tr key={idx} style={{ background: bg, color }}>
+                          <td style={{ padding: '0.35rem' }}>{p.speakers.join(' ↔ ')}</td>
+                          <td style={{ padding: '0.35rem', textAlign: 'right' }}>{p.totalWords}</td>
+                          <td style={{ padding: '0.35rem', textAlign: 'right' }}>{p.dialogs}</td>
+                          <td style={{ padding: '0.35rem', textAlign: 'right' }}>{p.totalTurns}</td>
+                          <td style={{ padding: '0.35rem', textAlign: 'right' }}>{p.maxLength}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {sorted.map((d, idx) => (
               <div key={idx} style={{ border: `1px solid ${THEME.border}`, borderRadius: '10px', padding: '0.65rem' }}>
