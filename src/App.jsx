@@ -224,6 +224,14 @@ function StatsPanel({ play, selectedActWordCounts }) {
   const topWords = (play.word_counts ?? []).slice(0, 8)
   const actWords = (selectedActWordCounts ?? []).slice(0, 8)
 
+  function computeHeuristic(dialogCount, noMaleCount) {
+    if (!dialogCount || dialogCount === 0) return 'NR'
+    if (noMaleCount > 0) return 'bestått'
+    return 'ikke bestått' // har kvinnelige dialoger, men alle nevner menn
+  }
+
+  const hStatus = computeHeuristic(bechdel?.female_dialog_count, bechdel?.female_dialogs_no_male_pron)
+
   return (
     <div style={{ marginTop: '1.5rem' }}>
       <h3>Statistikk</h3>
@@ -244,6 +252,9 @@ function StatsPanel({ play, selectedActWordCounts }) {
           <h4 style={{ marginTop: '0.75rem' }}>Dialoger</h4>
           <p style={{ color: THEME.subtle }}>
             Totalt: {dialogs.length} &nbsp;|&nbsp; Kvinnelige par: {femaleDialogs.length}
+          </p>
+          <p style={{ color: THEME.subtle }}>
+            Heuristikk (female dialogs / uten mannlige pronomen): {bechdel?.female_dialog_count ?? 0} / {bechdel?.female_dialogs_no_male_pron ?? 0} → <strong>{hStatus}</strong>
           </p>
         </div>
 
