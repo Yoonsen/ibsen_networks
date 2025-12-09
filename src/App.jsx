@@ -22,6 +22,12 @@ function displayTitle(title) {
   return String(title).replace(/_/g, ' ')
 }
 
+function computeBechdelStatus(dialogCount = 0, noMaleCount = 0) {
+  if (!dialogCount || dialogCount === 0) return 'NR'
+  if (noMaleCount > 0) return 'bestått'
+  return 'ikke bestått'
+}
+
 function normalizeGender(name, rawGender, femaleMap = {}) {
   if (rawGender === 'F' || rawGender === 'M' || rawGender === '?') return rawGender
   if (typeof rawGender === 'boolean') return rawGender ? 'F' : 'M'
@@ -390,6 +396,7 @@ function App() {
     () => (typeof window !== 'undefined' ? window.innerWidth >= 900 : true)
   )
   const [showInfo, setShowInfo] = useState(false)
+  const [sortKey, setSortKey] = useState('female-nodes')
 
   useEffect(() => {
     fetch('./ibsen_networks.json')
@@ -403,6 +410,29 @@ function App() {
 
   const plays = data?.plays ?? []
   const femaleMap = data?.FEMALE_CHARACTERS ?? {}
+
+  const playsWithMeta = useMemo(() => {
+    return plays.map(p => {
+      const nodes = p.speech_network?.nodes ?? []
+      const femaleNodes = nodes.filter(n => normalizeGender(n.id, n.gender, femaleMap) === 'F').length
+      const femaleWords = (p.word_counts ?? []).reduce((acc, row) => {
+        return femaleMap[row.character] ? acc + (row.words ?? 0) : acc
+      }, 0)
+      const dialogCount = p.bechdel?.female_dialog_count ?? 0
+      const noMaleCount = p.bechdel?.female_dialogs_no_male_pron ?? 0
+      const bechdelStatus = computeBechdelStatus(dialogCount, noMaleCount)
+      const bechdelRank = bechdelStatus === 'bestått' ? 0 : bechdelStatus === 'ikke bestått' ? 1 : 2
+      return {
+        ...p,
+        femaleNodes,
+        femaleWords,
+        bechdelStatus,
+        bechdelRank,
+        dialogCount,
+        noMaleCount,
+      }
+    })
+  }, [plays, femaleMap])
 
   useEffect(() => {
     if (!selectedId && plays.length > 0) {
@@ -432,6 +462,23 @@ function App() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  const actOptions = selectedPlay?.acts ?? []
+  const actData = actOptions.find(a => a.act_n === selectedAct)
+  const actWordCounts = actData?.word_counts
+
+  const sortedPlays = useMemo(() => {
+    const list = [...playsWithMeta]
+    const cmp = {
+      'female-nodes': (a, b) => b.femaleNodes - a.femaleNodes || b.femaleWords - a.femaleWords,
+      'female-words': (a, b) => b.femaleWords - a.femaleWords || b.femaleNodes - a.femaleNodes,
+      'bechdel': (a, b) =>
+        a.bechdelRank - b.bechdelRank ||
+        (b.noMaleCount ?? 0) - (a.noMaleCount ?? 0) ||
+        (b.dialogCount ?? 0) - (a.dialogCount ?? 0),
+    }[sortKey] ?? (() => 0)
+    return list.sort(cmp)
+  }, [playsWithMeta, sortKey])
+
   if (error) {
     return <div>Feil ved lasting av data: {error}</div>
   }
@@ -439,10 +486,6 @@ function App() {
   if (!data) {
     return <div>Laster Ibsen-data…</div>
   }
-
-  const actOptions = selectedPlay?.acts ?? []
-  const actData = actOptions.find(a => a.act_n === selectedAct)
-  const actWordCounts = actData?.word_counts
 
   return (
     <div style={{ padding: '1rem 1.5rem 2rem', fontFamily: 'Inter, system-ui, sans-serif', background: THEME.bg, minHeight: '100vh' }}>
@@ -472,6 +515,72 @@ function App() {
         <div style={{ marginTop: '0.75rem', marginBottom: '1rem' }}>
           <PlaySelector plays={plays} selectedId={selectedId} onChange={setSelectedId} />
         </div>
+
+        {plays.length > 0 && (
+          <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow, marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>Sorterte høydepunkter</h3>
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value)}
+                style={{ padding: '0.45rem 0.6rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: THEME.accentSoft, color: THEME.text }}
+              >
+                <option value="female-nodes">Flest kvinnelige roller (globalt nettverk)</option>
+                <option value="female-words">Flest kvinnelige ord (total)</option>
+                <option value="bechdel">Bechdel: bestått → ikke bestått → NR</option>
+              </select>
+            </div>
+            <div style={{ maxHeight: '320px', overflowY: 'auto', marginTop: '0.65rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {sortedPlays.map((p, idx) => (
+                <button
+                  key={p.id || p.title}
+                  onClick={() => setSelectedId(p.id || p.title)}
+                  style={{
+                    textAlign: 'left',
+                    border: `1px solid ${THEME.border}`,
+                    background: '#fff',
+                    borderRadius: '10px',
+                    padding: '0.55rem 0.65rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                    <span style={{ fontWeight: 600 }}>{idx + 1}. {displayTitle(p.title)}</span>
+                    {sortKey === 'female-nodes' && (
+                      <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>
+                        Kvinnelige noder: {p.femaleNodes} · Kvinnelige ord: {p.femaleWords}
+                      </span>
+                    )}
+                    {sortKey === 'female-words' && (
+                      <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>
+                        Kvinnelige ord: {p.femaleWords} · Kvinnelige noder: {p.femaleNodes}
+                      </span>
+                    )}
+                    {sortKey === 'bechdel' && (
+                      <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>
+                        Bechdel: {p.bechdelStatus} · Kvinnelige dialoger: {p.dialogCount} ({p.noMaleCount} uten mannlige pron.)
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '0.85rem',
+                      color: p.bechdelStatus === 'bestått' ? '#0b7a34' : p.bechdelStatus === 'ikke bestått' ? '#b45309' : '#475569',
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '999px',
+                      background: '#f3f4f6',
+                    }}
+                  >
+                    {p.bechdelStatus}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {!selectedPlay ? (
           <p>Velg et stykke fra nedtrekkslisten.</p>
