@@ -618,7 +618,13 @@ function App() {
       .catch(err => setError(err.message))
   }, [])
 
-  const plays = data?.plays ?? []
+  const plays = useMemo(() => {
+    const raw = data?.plays ?? []
+    return raw.filter(p => {
+      const total = (p.word_counts ?? []).reduce((s, r) => s + (r.words ?? 0), 0)
+      return total > 0
+    })
+  }, [data])
   const femaleMap = data?.FEMALE_CHARACTERS ?? {}
 
   const playsWithMeta = useMemo(() => {
