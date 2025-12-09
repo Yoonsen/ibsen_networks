@@ -523,6 +523,23 @@ function InfoModal({ open, onClose }) {
 
 function DialogModal({ open, onClose, dialogs = [], title }) {
   if (!open) return null
+  const [sortKey, setSortKey] = useState('length')
+  const [hideMalePron, setHideMalePron] = useState(false)
+
+  const filtered = useMemo(() => {
+    return hideMalePron ? dialogs.filter(d => (d.male_pron ?? 0) === 0) : dialogs
+  }, [dialogs, hideMalePron])
+
+  const sorted = useMemo(() => {
+    const list = [...filtered]
+    const cmp = {
+      length: (a, b) => (b.length ?? 0) - (a.length ?? 0),
+      words: (a, b) => (b.total_words ?? 0) - (a.total_words ?? 0),
+      male_pron: (a, b) => (a.male_pron ?? 0) - (b.male_pron ?? 0),
+    }[sortKey] ?? (() => 0)
+    return list.sort(cmp)
+  }, [filtered, sortKey])
+
   return (
     <div
       style={{
@@ -555,7 +572,7 @@ function DialogModal({ open, onClose, dialogs = [], title }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h3 style={{ margin: 0 }}>{title || 'Dialoger'}</h3>
-            <p style={{ margin: 0, color: THEME.subtle }}>{dialogs.length} dialoger (kvinnelige par)</p>
+            <p style={{ margin: 0, color: THEME.subtle }}>{filtered.length} dialoger (kvinnelige par)</p>
           </div>
           <button
             onClick={onClose}
@@ -573,9 +590,32 @@ function DialogModal({ open, onClose, dialogs = [], title }) {
           </button>
         </div>
 
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <input
+              type="checkbox"
+              checked={hideMalePron}
+              onChange={(e) => setHideMalePron(e.target.checked)}
+            />
+            <span style={{ color: THEME.subtle }}>Skjul dialoger med mannlige pronomen</span>
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ color: THEME.subtle }}>Sorter på:</span>
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value)}
+              style={{ padding: '0.35rem 0.5rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: THEME.accentSoft, color: THEME.text }}
+            >
+              <option value="length">Lengde (turer)</option>
+              <option value="words">Ord</option>
+              <option value="male_pron">Færrest mannlige pronomen</option>
+            </select>
+          </div>
+        </div>
+
         <div style={{ overflowY: 'auto', paddingRight: '0.25rem', flex: 1 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {dialogs.map((d, idx) => (
+            {sorted.map((d, idx) => (
               <div key={idx} style={{ border: `1px solid ${THEME.border}`, borderRadius: '10px', padding: '0.65rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <strong>{d.speakers?.join(' ↔ ')}</strong>
@@ -587,6 +627,11 @@ function DialogModal({ open, onClose, dialogs = [], title }) {
                   <span>M-pron: {d.male_pron ?? 0}</span>
                   <span>F-pron: {d.female_pron ?? 0}</span>
                 </div>
+                {(d.male_pron ?? 0) === 0 && (
+                  <span style={{ marginTop: '0.25rem', display: 'inline-block', padding: '0.2rem 0.5rem', borderRadius: '999px', background: '#d1fae5', color: '#065f46', fontSize: '0.85rem' }}>
+                    Ingen mannlige pronomen
+                  </span>
+                )}
               </div>
             ))}
           </div>
