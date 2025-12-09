@@ -47,3 +47,4 @@ Målet er at en Ibsen-forsker skal kunne:
 - Co-occurrence-visning og scenetidslinje.
 - Caching i service worker når datastørrelse krever det.
 - Evt. dark mode / tema-velger.
+- Koble inn Python-datagenerering (TEI → `ibsen_networks.json`) og dokumentere kjøring.

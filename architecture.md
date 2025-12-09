@@ -20,6 +20,7 @@
 - `public/ibsen_networks.json` – alle nettverksdata.
 - `docs/` – bygget PWA for GitHub Pages.
 - `legacy/DATASTRUCTURE_UPDATE.md` – kontrakt for datastruktur (top-level FEMALE_CHARACTERS, plays med speech/co-nettverk, acts, dialogs, bechdel).
+- `data/` – plass for Python-skript som genererer `ibsen_networks.json` fra TEI.
 
 ## UI-arkitektur (nåværende)
 
@@ -38,6 +39,13 @@
 3. Globalt nettverk: `play.speech_network`.
 4. Aktpanel: `play.acts[*].speech_network`.
 5. Statistikk: `play.bechdel`, `play.dialogs`, `play.word_counts`, `play.act_word_counts`.
+
+## Vedlikehold / for LLM
+
+- Data-generering: bruk Python-skriptet i `data/` (når lagt inn) for å regenerere `public/ibsen_networks.json` fra TEI-XML. Output må matche kontrakten i `legacy/DATASTRUCTURE_UPDATE.md`.
+- Build/deploy: `npm run build` (output i `docs/`), så push til GitHub Pages.
+- Caching: `sw.js` er minimal (ingen cache); hard refresh etter deploy.
+- Styling/layout: se `src/App.jsx` for grid/scroll-arkitektur og kjønnsfarger. Responsivt fallback til stacked.
 
 ## Dataflyt
 
