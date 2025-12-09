@@ -17,6 +17,11 @@ const THEME = {
   shadow: '0 12px 30px rgba(15, 23, 42, 0.08)',
 }
 
+function displayTitle(title) {
+  if (!title) return ''
+  return String(title).replace(/_/g, ' ')
+}
+
 function normalizeGender(name, rawGender, femaleMap = {}) {
   if (rawGender === 'F' || rawGender === 'M' || rawGender === '?') return rawGender
   if (typeof rawGender === 'boolean') return rawGender ? 'F' : 'M'
@@ -301,7 +306,7 @@ function PlaySelector({ plays, selectedId, onChange }) {
       >
         {plays.map(p => (
           <option key={p.id || p.title} value={p.id || p.title}>
-            {p.title}
+            {displayTitle(p.title)}
           </option>
         ))}
       </select>
@@ -462,7 +467,7 @@ function App() {
         ) : (
           <>
             <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem 1.25rem', boxShadow: THEME.shadow, marginBottom: '1rem' }}>
-              <h2 style={{ marginTop: 0, marginBottom: '0.35rem' }}>{selectedPlay.title}</h2>
+              <h2 style={{ marginTop: 0, marginBottom: '0.35rem' }}>{displayTitle(selectedPlay.title)}</h2>
               <div style={{ color: THEME.subtle }}>
                 {selectedPlay.acts?.length ?? 0} akter &nbsp;|&nbsp; noder i globalt nettverk: {selectedPlay.speech_network?.nodes?.length ?? 0}
               </div>
