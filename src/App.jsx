@@ -712,10 +712,6 @@ function App() {
       'female-words': (a, b) => b.femaleWords - a.femaleWords || b.femaleNodes - a.femaleNodes,
       'male-words': (a, b) => b.maleWords - a.maleWords || b.femaleWords - a.femaleWords,
       'female-share': (a, b) => b.femaleShare - a.femaleShare || b.femaleWords - a.femaleWords,
-      'bechdel': (a, b) =>
-        a.bechdelRank - b.bechdelRank ||
-        (b.noMaleCount ?? 0) - (a.noMaleCount ?? 0) ||
-        (b.dialogCount ?? 0) - (a.dialogCount ?? 0),
     }[sortKey] ?? (() => 0)
     return list.sort(cmp)
   }, [playsWithMeta, sortKey])
@@ -775,7 +771,6 @@ function App() {
                 <option value="female-words">Flest kvinnelige ord</option>
                 <option value="male-words">Flest mannlige ord</option>
                 <option value="female-share">Høy andel kvinnelige ord</option>
-                <option value="bechdel">Bechdel: bestått → ikke bestått → NR</option>
               </select>
             </div>
             <div style={{ maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -815,11 +810,6 @@ function App() {
                     {sortKey === 'female-share' && (
                       <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>
                         Andel kvinnelige ord: {(p.femaleShare * 100).toFixed(1)}%
-                      </span>
-                    )}
-                    {sortKey === 'bechdel' && (
-                      <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>
-                        Bechdel: {p.bechdelStatus} · Kvinnelige dialoger: {p.dialogCount} ({p.noMaleCount} uten mannlige pron.)
                       </span>
                     )}
                   </div>
