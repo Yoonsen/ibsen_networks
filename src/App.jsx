@@ -6,6 +6,17 @@ const GENDER_COLORS = {
   '?': '#555',  // ukjent
 }
 
+const THEME = {
+  bg: '#f6f8fb',
+  card: '#ffffff',
+  border: '#e5e7eb',
+  text: '#0f172a',
+  subtle: '#475569',
+  accent: '#2563eb',
+  accentSoft: '#e0e7ff',
+  shadow: '0 12px 30px rgba(15, 23, 42, 0.08)',
+}
+
 function normalizeGender(name, rawGender, femaleMap = {}) {
   if (rawGender === 'F' || rawGender === 'M' || rawGender === '?') return rawGender
   if (typeof rawGender === 'boolean') return rawGender ? 'F' : 'M'
@@ -159,7 +170,7 @@ function LegendRow({ y, color, label }) {
   )
 }
 
-function NetworkSection({ title, network, femaleMap }) {
+function NetworkSection({ title, network, femaleMap, width = 420, height = 420 }) {
   const { nodes, edges } = useMemo(() => computeSpeechStats(network, femaleMap), [network, femaleMap])
 
   return (
@@ -168,7 +179,7 @@ function NetworkSection({ title, network, femaleMap }) {
       <p style={{ marginTop: '-0.25rem' }}>
         Noder: <strong>{nodes.length}</strong> &nbsp;|&nbsp; Kanter: <strong>{edges.length}</strong>
       </p>
-      <NetworkGraph nodes={nodes} edges={edges} />
+      <NetworkGraph nodes={nodes} edges={edges} width={width} height={height} />
 
       {nodes.length > 0 && (
         <>
@@ -213,10 +224,10 @@ function StatsPanel({ play, selectedActWordCounts }) {
       <h3>Statistikk</h3>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem' }}>
-        <div style={{ minWidth: '18rem' }}>
-          <h4>Bechdel</h4>
+        <div style={{ minWidth: '18rem', background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '10px', padding: '1rem', boxShadow: THEME.shadow }}>
+          <h4 style={{ marginTop: 0 }}>Bechdel</h4>
           {bechdel ? (
-            <ul style={{ marginTop: '0.25rem' }}>
+            <ul style={{ marginTop: '0.25rem', color: THEME.subtle }}>
               <li>Status: <strong>{bechdel.status}</strong> ({bechdel.passes ? 'passer' : 'passer ikke'})</li>
               <li>Kvinnelige dialoger: {bechdel.female_dialog_count}</li>
               <li>Uten mannlige pronomen: {bechdel.female_dialogs_no_male_pron}</li>
@@ -226,26 +237,26 @@ function StatsPanel({ play, selectedActWordCounts }) {
           )}
 
           <h4 style={{ marginTop: '0.75rem' }}>Dialoger</h4>
-          <p>
+          <p style={{ color: THEME.subtle }}>
             Totalt: {dialogs.length} &nbsp;|&nbsp; Kvinnelige par: {femaleDialogs.length}
           </p>
         </div>
 
         {topWords.length > 0 && (
-          <div style={{ minWidth: '18rem', flex: 1 }}>
-            <h4>Ordtelling (hele stykket)</h4>
+          <div style={{ minWidth: '18rem', flex: 1, background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '10px', padding: '1rem', boxShadow: THEME.shadow }}>
+            <h4 style={{ marginTop: 0 }}>Ordtelling (hele stykket)</h4>
             <table style={{ borderCollapse: 'collapse', width: '100%' }}>
               <thead>
                 <tr>
-                  <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.25rem' }}>Karakter</th>
-                  <th style={{ borderBottom: '1px solid #ccc', textAlign: 'right', padding: '0.25rem' }}>Ord</th>
+                  <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'left', padding: '0.35rem' }}>Karakter</th>
+                  <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Ord</th>
                 </tr>
               </thead>
               <tbody>
                 {topWords.map(row => (
                   <tr key={row.character}>
-                    <td style={{ padding: '0.25rem' }}>{row.character}</td>
-                    <td style={{ padding: '0.25rem', textAlign: 'right' }}>{row.words}</td>
+                    <td style={{ padding: '0.35rem' }}>{row.character}</td>
+                    <td style={{ padding: '0.35rem', textAlign: 'right' }}>{row.words}</td>
                   </tr>
                 ))}
               </tbody>
@@ -254,20 +265,20 @@ function StatsPanel({ play, selectedActWordCounts }) {
         )}
 
         {actWords.length > 0 && (
-          <div style={{ minWidth: '18rem', flex: 1 }}>
-            <h4>Ordtelling (valgt akt)</h4>
+          <div style={{ minWidth: '18rem', flex: 1, background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '10px', padding: '1rem', boxShadow: THEME.shadow }}>
+            <h4 style={{ marginTop: 0 }}>Ordtelling (valgt akt)</h4>
             <table style={{ borderCollapse: 'collapse', width: '100%' }}>
               <thead>
                 <tr>
-                  <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.25rem' }}>Karakter</th>
-                  <th style={{ borderBottom: '1px solid #ccc', textAlign: 'right', padding: '0.25rem' }}>Ord</th>
+                  <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'left', padding: '0.35rem' }}>Karakter</th>
+                  <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Ord</th>
                 </tr>
               </thead>
               <tbody>
                 {actWords.map(row => (
                   <tr key={row.character}>
-                    <td style={{ padding: '0.25rem' }}>{row.character}</td>
-                    <td style={{ padding: '0.25rem', textAlign: 'right' }}>{row.words}</td>
+                    <td style={{ padding: '0.35rem' }}>{row.character}</td>
+                    <td style={{ padding: '0.35rem', textAlign: 'right' }}>{row.words}</td>
                   </tr>
                 ))}
               </tbody>
@@ -298,11 +309,71 @@ function PlaySelector({ plays, selectedId, onChange }) {
   )
 }
 
+function InfoModal({ open, onClose }) {
+  if (!open) return null
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.35)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '1rem',
+      }}
+    >
+      <div
+        style={{
+          background: THEME.card,
+          borderRadius: '14px',
+          border: `1px solid ${THEME.border}`,
+          boxShadow: THEME.shadow,
+          maxWidth: '560px',
+          width: '100%',
+          padding: '1.5rem',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <h3 style={{ margin: 0 }}>Om data og visning</h3>
+          <button
+            onClick={onClose}
+            style={{
+              border: 'none',
+              background: THEME.accentSoft,
+              color: THEME.accent,
+              borderRadius: '999px',
+              padding: '0.35rem 0.65rem',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Lukk
+          </button>
+        </div>
+        <ul style={{ color: THEME.subtle, lineHeight: 1.6, paddingLeft: '1rem' }}>
+          <li>Globalt nettverk: talenettverk for hele stykket.</li>
+          <li>Akter: hvert akt-nettverk rendres under i en scrollbar kolonne.</li>
+          <li>Noder fargekodes etter kjønn (F=rød, M=blå, ukjent=grå).</li>
+          <li>Bechdel- og dialogtall finnes i statistikkfeltet nederst.</li>
+          <li>Data kommer fra `ibsen_networks.json` (FEMALE_CHARACTERS, nettverk, ordtall).</li>
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [selectedId, setSelectedId] = useState('')
   const [selectedAct, setSelectedAct] = useState('')
+  const [isWide, setIsWide] = useState(
+    () => (typeof window !== 'undefined' ? window.innerWidth >= 900 : true)
+  )
+  const [showInfo, setShowInfo] = useState(false)
 
   useEffect(() => {
     fetch('./ibsen_networks.json')
@@ -337,6 +408,14 @@ function App() {
     }
   }, [selectedPlay])
 
+  useEffect(() => {
+    function handleResize() {
+      setIsWide(window.innerWidth >= 900)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   if (error) {
     return <div>Feil ved lasting av data: {error}</div>
   }
@@ -347,69 +426,123 @@ function App() {
 
   const actOptions = selectedPlay?.acts ?? []
   const actData = actOptions.find(a => a.act_n === selectedAct)
-  const actNetwork = actData?.speech_network
   const actWordCounts = actData?.word_counts
 
   return (
-    <div style={{ padding: '1rem 1.5rem', fontFamily: 'system-ui, sans-serif' }}>
-      <h1>Ibsen drama ecology</h1>
-      <p>{plays.length} skuespill lastet.</p>
+    <div style={{ padding: '1rem 1.5rem 2rem', fontFamily: 'Inter, system-ui, sans-serif', background: THEME.bg, minHeight: '100vh' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+          <div>
+            <h1 style={{ marginBottom: '0.15rem' }}>Ibsen drama ecology</h1>
+            <p style={{ marginTop: 0, color: THEME.subtle }}>{plays.length} skuespill lastet.</p>
+          </div>
+          <button
+            onClick={() => setShowInfo(true)}
+            style={{
+              border: 'none',
+              background: THEME.accentSoft,
+              color: THEME.accent,
+              padding: '0.55rem 0.9rem',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              boxShadow: '0 6px 16px rgba(37, 99, 235, 0.15)',
+            }}
+          >
+            Info
+          </button>
+        </div>
 
-      {plays.length > 0 && (
-        <div style={{ marginTop: '0.5rem', marginBottom: '1rem' }}>
+        <div style={{ marginTop: '0.75rem', marginBottom: '1rem' }}>
           <PlaySelector plays={plays} selectedId={selectedId} onChange={setSelectedId} />
         </div>
-      )}
 
-      {!selectedPlay ? (
-        <p>Velg et stykke fra nedtrekkslisten.</p>
-      ) : (
-        <>
-          <h2 style={{ marginTop: '0.5rem' }}>{selectedPlay.title}</h2>
-          <div style={{ color: '#555', marginBottom: '0.75rem' }}>
-            {selectedPlay.acts?.length ?? 0} akter &nbsp;|&nbsp; noder i globalt nettverk: {selectedPlay.speech_network?.nodes?.length ?? 0}
-          </div>
+        {!selectedPlay ? (
+          <p>Velg et stykke fra nedtrekkslisten.</p>
+        ) : (
+          <>
+            <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem 1.25rem', boxShadow: THEME.shadow, marginBottom: '1rem' }}>
+              <h2 style={{ marginTop: 0, marginBottom: '0.35rem' }}>{selectedPlay.title}</h2>
+              <div style={{ color: THEME.subtle }}>
+                {selectedPlay.acts?.length ?? 0} akter &nbsp;|&nbsp; noder i globalt nettverk: {selectedPlay.speech_network?.nodes?.length ?? 0}
+              </div>
+            </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
-            <NetworkSection
-              title="Globalt talenettverk"
-              network={selectedPlay.speech_network}
-              femaleMap={femaleMap}
-            />
-
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <h3 style={{ marginTop: 0, marginBottom: 0 }}>Talenettverk per akt</h3>
-                {actOptions.length > 0 && (
-                  <select
-                    value={selectedAct}
-                    onChange={(e) => setSelectedAct(e.target.value)}
-                    style={{ padding: '0.35rem', borderRadius: '4px' }}
-                  >
-                    {actOptions.map(act => (
-                      <option key={act.act_n} value={act.act_n}>
-                        Akt {act.act_n}
-                      </option>
-                    ))}
-                  </select>
-                )}
+            <div
+              style={
+                isWide
+                  ? { display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: '1.5rem', alignItems: 'start' }
+                  : { display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'stretch' }
+              }
+            >
+              <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow }}>
+                <NetworkSection
+                  title="Globalt talenettverk"
+                  network={selectedPlay.speech_network}
+                  femaleMap={femaleMap}
+                  width={isWide ? 520 : 360}
+                  height={isWide ? 520 : 360}
+                />
               </div>
 
-              {actNetwork ? (
-                <NetworkSection
-                  title={`Akt ${selectedAct}`}
-                  network={actNetwork}
-                  femaleMap={femaleMap}
-                />
-              ) : (
-                <p>Ingen akt valgt eller ingen nettverksdata for akt.</p>
-              )}
-            </div>
-          </div>
+              <div
+                style={{
+                  flex: 1,
+                  maxHeight: isWide ? '80vh' : 'none',
+                  overflowY: isWide ? 'auto' : 'visible',
+                  padding: '0.85rem',
+                  border: `1px solid ${THEME.border}`,
+                  borderRadius: '12px',
+                  background: THEME.card,
+                  boxShadow: THEME.shadow,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: 0 }}>Talenettverk per akt</h3>
+                  {actOptions.length > 0 && (
+                    <select
+                      value={selectedAct}
+                      onChange={(e) => setSelectedAct(e.target.value)}
+                      style={{ padding: '0.4rem 0.55rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: THEME.accentSoft, color: THEME.text }}
+                    >
+                      {actOptions.map(act => (
+                        <option key={act.act_n} value={act.act_n}>
+                          Akt {act.act_n}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
 
-          <StatsPanel play={selectedPlay} selectedActWordCounts={actWordCounts} />
-        </>
-      )}
+                <p style={{ marginTop: '0.35rem', color: THEME.subtle, fontSize: '0.9rem' }}>
+                  Alle akter listes under – scroll for å se flere.
+                </p>
+
+                {actOptions.length === 0 ? (
+                  <p>Ingen nettverksdata for akter.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {actOptions.map(act => (
+                      <NetworkSection
+                        key={act.act_n}
+                        title={`Akt ${act.act_n}`}
+                        network={act.speech_network}
+                        femaleMap={femaleMap}
+                        width={isWide ? 380 : 340}
+                        height={isWide ? 380 : 340}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <StatsPanel play={selectedPlay} selectedActWordCounts={actWordCounts} />
+          </>
+        )}
+      </div>
+
+      <InfoModal open={showInfo} onClose={() => setShowInfo(false)} />
     </div>
   )
 }
