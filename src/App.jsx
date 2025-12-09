@@ -805,6 +805,27 @@ function App() {
     setDialogModal({ open: true, dialogs: dialogs ?? [], title: displayTitle(title) })
   }
 
+  const pairStatsAll = useMemo(() => {
+    const map = new Map()
+    const ds = selectedPlay?.dialogs ?? []
+    for (const d of ds) {
+      const sp = Array.isArray(d.speakers) ? d.speakers.slice().sort() : []
+      if (sp.length !== 2) continue
+      const key = sp.join(' | ')
+      if (!map.has(key)) {
+        map.set(key, { speakers: sp, dialogs: 0, totalWords: 0, totalTurns: 0, maxLength: 0 })
+      }
+      const rec = map.get(key)
+      rec.dialogs += 1
+      rec.totalWords += d.total_words ?? 0
+      rec.totalTurns += d.length ?? 0
+      rec.maxLength = Math.max(rec.maxLength, d.length ?? 0)
+    }
+    const arr = Array.from(map.values()).sort((a, b) => b.totalWords - a.totalWords)
+    const maxWords = arr.reduce((m, r) => Math.max(m, r.totalWords), 0)
+    return { pairs: arr.slice(0, 10), maxWords }
+  }, [selectedPlay])
+
   const sortedPlays = useMemo(() => {
     const list = [...playsWithMeta]
     const cmp = {
@@ -1015,6 +1036,41 @@ function App() {
                 )}
               </div>
             </div>
+
+          {pairStatsAll.pairs.length > 0 && (
+            <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow, marginTop: '1rem' }}>
+              <h3 style={{ marginTop: 0 }}>Par-intensitet (topp 10)</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'left', padding: '0.35rem' }}>Par</th>
+                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Ord (sum)</th>
+                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Dialoger</th>
+                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Tot. turer</th>
+                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Maks lengde</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pairStatsAll.pairs.map((p, idx) => {
+                      const ratio = pairStatsAll.maxWords > 0 ? p.totalWords / pairStatsAll.maxWords : 0
+                      const bg = ratio === 0 ? '#f8fafc' : `rgba(37, 99, 235, ${0.12 + 0.55 * ratio})`
+                      const color = ratio > 0.6 ? '#0b1f4a' : '#0f172a'
+                      return (
+                        <tr key={idx} style={{ background: bg, color }}>
+                          <td style={{ padding: '0.35rem' }}>{p.speakers.join(' ↔ ')}</td>
+                          <td style={{ padding: '0.35rem', textAlign: 'right' }}>{p.totalWords}</td>
+                          <td style={{ padding: '0.35rem', textAlign: 'right' }}>{p.dialogs}</td>
+                          <td style={{ padding: '0.35rem', textAlign: 'right' }}>{p.totalTurns}</td>
+                          <td style={{ padding: '0.35rem', textAlign: 'right' }}>{p.maxLength}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
             <StatsPanel play={selectedPlay} selectedActWordCounts={actWordCounts} onShowDialogList={handleShowDialogList} />
           </>
