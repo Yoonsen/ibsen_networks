@@ -35,7 +35,7 @@ function normalizeGender(name, rawGender, femaleMap = {}) {
   return '?'
 }
 
-function computeSpeechStats(network, femaleMap = {}) {
+function computeSpeechStats(network, femaleMap = {}, wordCounts = null) {
   const edges = network?.edges ?? []
   const nodeDefs = network?.nodes ?? []
   const nodeMap = new Map()
@@ -59,28 +59,42 @@ function computeSpeechStats(network, femaleMap = {}) {
   // sørg for at alle noder finnes, også de uten kanter
   nodeDefs.forEach(n => ensureNode(n.id))
 
-  edges.forEach(e => {
-    const from = e.source
-    const to = e.target
-    if (!from || !to) return
+  // Hvis vi har word_counts, bruk dem som sann taletid/ord.
+  if (Array.isArray(wordCounts)) {
+    for (const row of wordCounts) {
+      if (!row?.character) continue
+      const node = ensureNode(row.character)
+      const words = Number(row.words ?? 0)
+      if (node) {
+        node.speeches = words
+        node.totalLen = words
+      }
+    }
+  } else {
+    // fallback: estimer fra overgangene
+    edges.forEach(e => {
+      const from = e.source
+      const to = e.target
+      if (!from || !to) return
 
-    const count = Number.isFinite(e.count) ? e.count : Number.isFinite(e.weight) ? e.weight : 0
-    const avgA = e.avg_len_A ?? 0
-    const avgB = e.avg_len_B ?? 0
+      const count = Number.isFinite(e.count) ? e.count : Number.isFinite(e.weight) ? e.weight : 0
+      const avgA = e.avg_len_A ?? 0
+      const avgB = e.avg_len_B ?? 0
 
-    const totalA = count * avgA
-    const totalB = count * avgB
+      const totalA = count * avgA
+      const totalB = count * avgB
 
-    const fromNode = ensureNode(from)
-    const toNode = ensureNode(to)
-    if (!fromNode || !toNode) return
+      const fromNode = ensureNode(from)
+      const toNode = ensureNode(to)
+      if (!fromNode || !toNode) return
 
-    fromNode.speeches += count
-    fromNode.totalLen += totalA
+      fromNode.speeches += count
+      fromNode.totalLen += totalA
 
-    toNode.speeches += count
-    toNode.totalLen += totalB
-  })
+      toNode.speeches += count
+      toNode.totalLen += totalB
+    })
+  }
 
   const nodes = Array.from(nodeMap.values()).map(n => ({
     ...n,
@@ -200,8 +214,8 @@ function StatChip({ label, value, color = THEME.text }) {
   )
 }
 
-function NetworkSection({ title, network, femaleMap, width = 420, height = 420 }) {
-  const { nodes, edges } = useMemo(() => computeSpeechStats(network, femaleMap), [network, femaleMap])
+function NetworkSection({ title, network, femaleMap, width = 420, height = 420, wordCounts = null }) {
+  const { nodes, edges } = useMemo(() => computeSpeechStats(network, femaleMap, wordCounts), [network, femaleMap, wordCounts])
 
   return (
     <div style={{ flex: 1, minWidth: '0' }}>
@@ -213,28 +227,23 @@ function NetworkSection({ title, network, femaleMap, width = 420, height = 420 }
 
       {nodes.length > 0 && (
         <>
-          <h4 style={{ marginTop: '0.75rem' }}>Taletid (topp 10)</h4>
+          <h4 style={{ marginTop: '0.75rem' }}>Ord (topp 10)</h4>
           <table style={{ borderCollapse: 'collapse', width: '100%' }}>
             <thead>
               <tr>
                 <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.25rem' }}>Karakter</th>
-                <th style={{ borderBottom: '1px solid #ccc', textAlign: 'right', padding: '0.25rem' }}>Replikker*</th>
-                <th style={{ borderBottom: '1px solid #ccc', textAlign: 'right', padding: '0.25rem' }}>Tot. ord</th>
-                <th style={{ borderBottom: '1px solid #ccc', textAlign: 'right', padding: '0.25rem' }}>Snitt</th>
+                <th style={{ borderBottom: '1px solid #ccc', textAlign: 'right', padding: '0.25rem' }}>Ord</th>
               </tr>
             </thead>
             <tbody>
               {nodes.slice(0, 10).map(n => (
                 <tr key={n.name}>
                   <td style={{ padding: '0.25rem' }}>{n.name}</td>
-                  <td style={{ padding: '0.25rem', textAlign: 'right' }}>{n.speeches}</td>
-                  <td style={{ padding: '0.25rem', textAlign: 'right' }}>{n.totalLen.toFixed(1)}</td>
-                  <td style={{ padding: '0.25rem', textAlign: 'right' }}>{n.avgLen.toFixed(1)}</td>
+                  <td style={{ padding: '0.25rem', textAlign: 'right' }}>{Math.round(n.totalLen)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p style={{ fontSize: '0.85rem', color: '#555' }}>*Replikker estimert fra overganger.</p>
         </>
       )}
     </div>
@@ -756,6 +765,7 @@ function App() {
                   title="Globalt talenettverk"
                   network={selectedPlay.speech_network}
                   femaleMap={femaleMap}
+                  wordCounts={selectedPlay.word_counts}
                   width={isWide ? 520 : 360}
                   height={isWide ? 520 : 360}
                 />
@@ -804,6 +814,7 @@ function App() {
                         title={`Akt ${act.act_n}`}
                         network={act.speech_network}
                         femaleMap={femaleMap}
+                        wordCounts={act.word_counts}
                         width={isWide ? 380 : 340}
                         height={isWide ? 380 : 340}
                       />
