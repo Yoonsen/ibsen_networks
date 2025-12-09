@@ -181,6 +181,25 @@ function LegendRow({ y, color, label }) {
   )
 }
 
+function StatChip({ label, value, color = THEME.text }) {
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.2rem',
+      padding: '0.65rem 0.75rem',
+      borderRadius: '10px',
+      border: `1px solid ${THEME.border}`,
+      background: THEME.card,
+      boxShadow: THEME.shadow,
+      minWidth: '120px',
+    }}>
+      <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>{label}</span>
+      <span style={{ fontWeight: 700, color }}>{value}</span>
+    </div>
+  )
+}
+
 function NetworkSection({ title, network, femaleMap, width = 420, height = 420 }) {
   const { nodes, edges } = useMemo(() => computeSpeechStats(network, femaleMap), [network, femaleMap])
 
@@ -505,9 +524,15 @@ function App() {
     return plays.map(p => {
       const nodes = p.speech_network?.nodes ?? []
       const femaleNodes = nodes.filter(n => normalizeGender(n.id, n.gender, femaleMap) === 'F').length
-      const femaleWords = (p.word_counts ?? []).reduce((acc, row) => {
-        return femaleMap[row.character] ? acc + (row.words ?? 0) : acc
-      }, 0)
+      let femaleWords = 0
+      let maleWords = 0
+      for (const row of p.word_counts ?? []) {
+        const val = row.words ?? 0
+        if (femaleMap[row.character]) femaleWords += val
+        else maleWords += val
+      }
+      const totalWords = femaleWords + maleWords
+      const femaleShare = totalWords > 0 ? femaleWords / totalWords : 0
       const dialogCount = p.bechdel?.female_dialog_count ?? 0
       const noMaleCount = p.bechdel?.female_dialogs_no_male_pron ?? 0
       const bechdelStatus = computeBechdelStatus(dialogCount, noMaleCount)
@@ -516,6 +541,9 @@ function App() {
         ...p,
         femaleNodes,
         femaleWords,
+        maleWords,
+        femaleShare,
+        totalWords,
         bechdelStatus,
         bechdelRank,
         dialogCount,
@@ -523,6 +551,16 @@ function App() {
       }
     })
   }, [plays, femaleMap])
+
+  const globalStats = useMemo(() => {
+    const totalPlays = playsWithMeta.length
+    const femaleWords = playsWithMeta.reduce((s, p) => s + (p.femaleWords ?? 0), 0)
+    const maleWords = playsWithMeta.reduce((s, p) => s + (p.maleWords ?? 0), 0)
+    const bechdelPass = playsWithMeta.filter(p => p.bechdelStatus === 'bestått').length
+    const bechdelFail = playsWithMeta.filter(p => p.bechdelStatus === 'ikke bestått').length
+    const bechdelNR = playsWithMeta.filter(p => p.bechdelStatus === 'NR').length
+    return { totalPlays, femaleWords, maleWords, bechdelPass, bechdelFail, bechdelNR }
+  }, [playsWithMeta])
 
   useEffect(() => {
     if (!selectedId && plays.length > 0) {
@@ -561,6 +599,8 @@ function App() {
     const cmp = {
       'female-nodes': (a, b) => b.femaleNodes - a.femaleNodes || b.femaleWords - a.femaleWords,
       'female-words': (a, b) => b.femaleWords - a.femaleWords || b.femaleNodes - a.femaleNodes,
+      'male-words': (a, b) => b.maleWords - a.maleWords || b.femaleWords - a.femaleWords,
+      'female-share': (a, b) => b.femaleShare - a.femaleShare || b.femaleWords - a.femaleWords,
       'bechdel': (a, b) =>
         a.bechdelRank - b.bechdelRank ||
         (b.noMaleCount ?? 0) - (a.noMaleCount ?? 0) ||
@@ -602,12 +642,17 @@ function App() {
           </button>
         </div>
 
-        <div style={{ marginTop: '0.75rem', marginBottom: '1rem' }}>
-          <PlaySelector plays={plays} selectedId={selectedId} onChange={setSelectedId} />
-        </div>
-
         {plays.length > 0 && (
-          <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow, marginBottom: '1rem' }}>
+          <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow, marginTop: '0.75rem', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+              <StatChip label="Skuespill" value={globalStats.totalPlays} />
+              <StatChip label="Bechdel bestått" value={globalStats.bechdelPass} color="#0b7a34" />
+              <StatChip label="Ikke bestått" value={globalStats.bechdelFail} color="#b45309" />
+              <StatChip label="NR" value={globalStats.bechdelNR} color="#475569" />
+              <StatChip label="Kvinnelige ord (sum)" value={globalStats.femaleWords} />
+              <StatChip label="Mannlige ord (sum)" value={globalStats.maleWords} />
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center' }}>
               <h3 style={{ margin: 0 }}>Sorterte høydepunkter</h3>
               <select
@@ -615,12 +660,14 @@ function App() {
                 onChange={(e) => setSortKey(e.target.value)}
                 style={{ padding: '0.45rem 0.6rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: THEME.accentSoft, color: THEME.text }}
               >
-                <option value="female-nodes">Flest kvinnelige roller (globalt nettverk)</option>
-                <option value="female-words">Flest kvinnelige ord (total)</option>
+                <option value="female-nodes">Flest kvinnelige roller</option>
+                <option value="female-words">Flest kvinnelige ord</option>
+                <option value="male-words">Flest mannlige ord</option>
+                <option value="female-share">Høy andel kvinnelige ord</option>
                 <option value="bechdel">Bechdel: bestått → ikke bestått → NR</option>
               </select>
             </div>
-            <div style={{ maxHeight: '320px', overflowY: 'auto', marginTop: '0.65rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <div style={{ maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {sortedPlays.map((p, idx) => (
                 <button
                   key={p.id || p.title}
@@ -646,7 +693,17 @@ function App() {
                     )}
                     {sortKey === 'female-words' && (
                       <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>
-                        Kvinnelige ord: {p.femaleWords} · Kvinnelige noder: {p.femaleNodes}
+                        Kvinnelige ord: {p.femaleWords} · Mannlige ord: {p.maleWords}
+                      </span>
+                    )}
+                    {sortKey === 'male-words' && (
+                      <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>
+                        Mannlige ord: {p.maleWords} · Kvinnelige ord: {p.femaleWords}
+                      </span>
+                    )}
+                    {sortKey === 'female-share' && (
+                      <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>
+                        Andel kvinnelige ord: {(p.femaleShare * 100).toFixed(1)}%
                       </span>
                     )}
                     {sortKey === 'bechdel' && (
@@ -671,6 +728,10 @@ function App() {
             </div>
           </div>
         )}
+
+        <div style={{ marginTop: '0.75rem', marginBottom: '1rem' }}>
+          <PlaySelector plays={plays} selectedId={selectedId} onChange={setSelectedId} />
+        </div>
 
         {!selectedPlay ? (
           <p>Velg et stykke fra nedtrekkslisten.</p>
