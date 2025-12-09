@@ -229,6 +229,45 @@ function StatsPanel({ play, selectedActWordCounts }) {
   const femaleDialogs = dialogs.filter(d => d.female_pair)
   const topWords = (play.word_counts ?? []).slice(0, 8)
   const actWords = (selectedActWordCounts ?? []).slice(0, 8)
+  const actWordMatrix = useMemo(() => {
+    const source = play.act_word_counts ?? {}
+    let acts = Object.keys(source)
+    if (acts.length === 0 && Array.isArray(play.acts)) {
+      acts = play.acts.map(a => a.act_n)
+    }
+    acts = acts.sort((a, b) => Number(a) - Number(b))
+    const charMap = new Map()
+    let maxWord = 0
+
+    const addWord = (character, act, words) => {
+      if (!character) return
+      if (!charMap.has(character)) {
+        charMap.set(character, { character, totals: {}, sum: 0 })
+      }
+      const row = charMap.get(character)
+      const val = Number(words ?? 0)
+      row.totals[act] = val
+      row.sum += val
+      if (val > maxWord) maxWord = val
+    }
+
+    if (Object.keys(source).length > 0) {
+      for (const act of acts) {
+        for (const row of source[act] ?? []) {
+          addWord(row.character, act, row.words)
+        }
+      }
+    } else if (Array.isArray(play.acts)) {
+      for (const act of play.acts) {
+        for (const row of act.word_counts ?? []) {
+          addWord(row.character, act.act_n, row.words)
+        }
+      }
+    }
+
+    const rows = Array.from(charMap.values()).sort((a, b) => b.sum - a.sum)
+    return { acts, rows, maxWord }
+  }, [play])
 
   function computeHeuristic(dialogCount, noMaleCount) {
     if (!dialogCount || dialogCount === 0) return 'NR'
@@ -305,6 +344,57 @@ function StatsPanel({ play, selectedActWordCounts }) {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {actWordMatrix?.rows?.length > 0 && (
+          <div style={{ minWidth: '18rem', flexBasis: '100%', background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '10px', padding: '1rem', boxShadow: THEME.shadow }}>
+            <h4 style={{ marginTop: 0, marginBottom: '0.5rem' }}>Ord per karakter per akt</h4>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'left', padding: '0.35rem', position: 'sticky', left: 0, background: THEME.card }}>Karakter</th>
+                    {actWordMatrix.acts.map(act => (
+                      <th key={act} style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>
+                        Akt {act}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {actWordMatrix.rows.map(row => (
+                    <tr key={row.character}>
+                      <td style={{ padding: '0.35rem', textAlign: 'left', position: 'sticky', left: 0, background: THEME.card }}>
+                        {row.character}
+                      </td>
+                      {actWordMatrix.acts.map(act => {
+                        const val = row.totals[act] ?? 0
+                        const ratio = actWordMatrix.maxWord > 0 ? val / actWordMatrix.maxWord : 0
+                        const bg = ratio === 0
+                          ? '#f8fafc'
+                          : `rgba(37, 99, 235, ${0.12 + 0.55 * ratio})`
+                        const color = ratio > 0.6 ? '#0b1f4a' : '#0f172a'
+                        return (
+                          <td
+                            key={act}
+                            style={{
+                              padding: '0.35rem',
+                              textAlign: 'right',
+                              background: bg,
+                              color,
+                              borderBottom: `1px solid ${THEME.border}`,
+                            }}
+                          >
+                            {val}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
