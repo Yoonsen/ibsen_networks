@@ -547,6 +547,8 @@ function DialogModal({ open, onClose, dialogs = [], title }) {
   if (!open) return null
   const [sortKey, setSortKey] = useState('length')
   const [hideMalePron, setHideMalePron] = useState(false)
+  const [pairSortKey, setPairSortKey] = useState('words')
+  const [pairSortDir, setPairSortDir] = useState('desc')
 
   const filtered = useMemo(() => {
     return hideMalePron ? dialogs.filter(d => (d.male_pron ?? 0) === 0) : dialogs
@@ -579,8 +581,29 @@ function DialogModal({ open, onClose, dialogs = [], title }) {
     }
     const arr = Array.from(map.values())
     const maxWords = arr.reduce((m, r) => Math.max(m, r.totalWords), 0)
-    return { pairs: arr.sort((a, b) => b.totalWords - a.totalWords), maxWords }
+    return { pairs: arr, maxWords }
   }, [filtered])
+
+  const sortedPairs = useMemo(() => {
+    const cmp = {
+      words: (a, b) => (b.totalWords ?? 0) - (a.totalWords ?? 0),
+      dialogs: (a, b) => (b.dialogs ?? 0) - (a.dialogs ?? 0),
+      turns: (a, b) => (b.totalTurns ?? 0) - (a.totalTurns ?? 0),
+      maxlen: (a, b) => (b.maxLength ?? 0) - (a.maxLength ?? 0),
+    }[pairSortKey] ?? (() => 0)
+    const list = [...pairStats.pairs].sort(cmp)
+    if (pairSortDir === 'asc') list.reverse()
+    return list
+  }, [pairStats, pairSortKey, pairSortDir])
+
+  const togglePairSort = (key) => {
+    if (pairSortKey === key) {
+      setPairSortDir(pairSortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setPairSortKey(key)
+      setPairSortDir('desc')
+    }
+  }
 
   return (
     <div
@@ -664,14 +687,14 @@ function DialogModal({ open, onClose, dialogs = [], title }) {
                   <thead>
                     <tr>
                       <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'left', padding: '0.35rem' }}>Par</th>
-                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Ord (sum)</th>
-                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Dialoger</th>
-                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Tot. turer</th>
-                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Maks lengde</th>
+                      <th onClick={() => togglePairSort('words')} style={{ cursor: 'pointer', borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Ord (sum){pairSortKey === 'words' ? (pairSortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>
+                      <th onClick={() => togglePairSort('dialogs')} style={{ cursor: 'pointer', borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Dialoger{pairSortKey === 'dialogs' ? (pairSortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>
+                      <th onClick={() => togglePairSort('turns')} style={{ cursor: 'pointer', borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Tot. turer{pairSortKey === 'turns' ? (pairSortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>
+                      <th onClick={() => togglePairSort('maxlen')} style={{ cursor: 'pointer', borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Maks lengde{pairSortKey === 'maxlen' ? (pairSortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pairStats.pairs.map((p, idx) => {
+                    {sortedPairs.map((p, idx) => {
                       const ratio = pairStats.maxWords > 0 ? p.totalWords / pairStats.maxWords : 0
                       const bg = ratio === 0 ? '#f8fafc' : `rgba(37, 99, 235, ${0.12 + 0.55 * ratio})`
                       const color = ratio > 0.6 ? '#0b1f4a' : '#0f172a'
@@ -730,6 +753,8 @@ function App() {
   const [showInfo, setShowInfo] = useState(false)
   const [sortKey, setSortKey] = useState('female-nodes')
   const [dialogModal, setDialogModal] = useState({ open: false, dialogs: [], title: '' })
+const [pairSortKeyAll, setPairSortKeyAll] = useState('words')
+const [pairSortDirAll, setPairSortDirAll] = useState('desc')
 
   useEffect(() => {
     fetch('./ibsen_networks.json')
@@ -864,8 +889,29 @@ function App() {
     }
     const arr = Array.from(map.values()).sort((a, b) => b.totalWords - a.totalWords)
     const maxWords = arr.reduce((m, r) => Math.max(m, r.totalWords), 0)
-    return { pairs: arr.slice(0, 10), maxWords }
+    return { pairs: arr, maxWords }
   }, [selectedPlay])
+
+  const sortedPairsAll = useMemo(() => {
+    const cmp = {
+      words: (a, b) => (b.totalWords ?? 0) - (a.totalWords ?? 0),
+      dialogs: (a, b) => (b.dialogs ?? 0) - (a.dialogs ?? 0),
+      turns: (a, b) => (b.totalTurns ?? 0) - (a.totalTurns ?? 0),
+      maxlen: (a, b) => (b.maxLength ?? 0) - (a.maxLength ?? 0),
+    }[pairSortKeyAll] ?? (() => 0)
+    const list = [...pairStatsAll.pairs].sort(cmp)
+    if (pairSortDirAll === 'asc') list.reverse()
+    return list.slice(0, 10)
+  }, [pairStatsAll, pairSortKeyAll, pairSortDirAll])
+
+  const togglePairSortAll = (key) => {
+    if (pairSortKeyAll === key) {
+      setPairSortDirAll(pairSortDirAll === 'asc' ? 'desc' : 'asc')
+    } else {
+      setPairSortKeyAll(key)
+      setPairSortDirAll('desc')
+    }
+  }
 
   const sortedPlays = useMemo(() => {
     const list = [...playsWithMeta]
@@ -1092,14 +1138,14 @@ function App() {
                   <thead>
                     <tr>
                       <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'left', padding: '0.35rem' }}>Par</th>
-                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Ord (sum)</th>
-                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Dialoger</th>
-                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Tot. turer</th>
-                      <th style={{ borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Maks lengde</th>
+                      <th onClick={() => togglePairSortAll('words')} style={{ cursor: 'pointer', borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Ord (sum){pairSortKeyAll === 'words' ? (pairSortDirAll === 'asc' ? ' ▲' : ' ▼') : ''}</th>
+                      <th onClick={() => togglePairSortAll('dialogs')} style={{ cursor: 'pointer', borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Dialoger{pairSortKeyAll === 'dialogs' ? (pairSortDirAll === 'asc' ? ' ▲' : ' ▼') : ''}</th>
+                      <th onClick={() => togglePairSortAll('turns')} style={{ cursor: 'pointer', borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Tot. turer{pairSortKeyAll === 'turns' ? (pairSortDirAll === 'asc' ? ' ▲' : ' ▼') : ''}</th>
+                      <th onClick={() => togglePairSortAll('maxlen')} style={{ cursor: 'pointer', borderBottom: `1px solid ${THEME.border}`, textAlign: 'right', padding: '0.35rem' }}>Maks lengde{pairSortKeyAll === 'maxlen' ? (pairSortDirAll === 'asc' ? ' ▲' : ' ▼') : ''}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pairStatsAll.pairs.map((p, idx) => {
+                    {sortedPairsAll.map((p, idx) => {
                       const ratio = pairStatsAll.maxWords > 0 ? p.totalWords / pairStatsAll.maxWords : 0
                       const bg = ratio === 0 ? '#f8fafc' : `rgba(37, 99, 235, ${0.12 + 0.55 * ratio})`
                       const color = ratio > 0.6 ? '#0b1f4a' : '#0f172a'
