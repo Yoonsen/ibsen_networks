@@ -259,7 +259,7 @@ function StatChip({ label, value, color = THEME.text }) {
   )
 }
 
-function NetworkSection({ title, network, femaleMap, width = 420, height = 420, wordCounts = null }) {
+function NetworkSection({ title, network, femaleMap, width = 420, height = 420, wordCounts = null, positions = null, dimInactive = false }) {
   const { nodes, edges } = useMemo(() => computeSpeechStats(network, femaleMap, wordCounts), [network, femaleMap, wordCounts])
 
   return (
@@ -268,7 +268,7 @@ function NetworkSection({ title, network, femaleMap, width = 420, height = 420, 
       <p style={{ marginTop: '-0.25rem' }}>
         Noder: <strong>{nodes.length}</strong> &nbsp;|&nbsp; Kanter: <strong>{edges.length}</strong>
       </p>
-      <NetworkGraph nodes={nodes} edges={edges} width={width} height={height} />
+      <NetworkGraph nodes={nodes} edges={edges} width={width} height={height} positions={positions} dimInactive={dimInactive} />
 
       {nodes.length > 0 && (
         <>
@@ -941,25 +941,22 @@ const [sceneId, setSceneId] = useState('')
       setSceneId('')
       return
     }
-    const first = scenesByAct[0]
-    if (first) {
-      setSceneAct(first.act)
-      setSceneId(first.scenes[0])
-    } else {
+    const firstAct = scenesByAct[0]?.act
+    const firstScene = scenesByAct[0]?.scenes?.[0]
+    if (!firstAct || !firstScene) {
       setSceneAct('')
       setSceneId('')
+      return
     }
-  }, [selectedPlay, scenesByAct])
-
-  useEffect(() => {
-    // when act changes, pick first scene in that act
-    const entry = scenesByAct.find(s => s.act === sceneAct)
-    if (entry && entry.scenes.length > 0) {
-      if (!entry.scenes.includes(sceneId)) {
-        setSceneId(entry.scenes[0])
-      }
+    if (!sceneAct) {
+      setSceneAct(firstAct)
     }
-  }, [sceneAct, sceneId, scenesByAct])
+    const entry = scenesByAct.find(s => s.act === (sceneAct || firstAct))
+    const scenes = entry?.scenes ?? []
+    if (!scenes.includes(sceneId)) {
+      setSceneId(scenes[0] || firstScene)
+    }
+  }, [selectedPlay, scenesByAct, sceneAct, sceneId])
 
   const sceneDialogs = useMemo(() => {
     if (!sceneAct || !sceneId) return []
@@ -1262,7 +1259,7 @@ const [sceneId, setSceneId] = useState('')
             </div>
           )}
 
-          {sceneAct && sceneId && sceneDialogs.length > 0 && (
+          {scenesByAct.length > 0 ? (
             <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow, marginTop: '1rem' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
                 <h3 style={{ marginTop: 0, marginBottom: 0 }}>Scenenettverk (fra dialoger)</h3>
@@ -1292,17 +1289,23 @@ const [sceneId, setSceneId] = useState('')
                   </span>
                 </div>
               </div>
-              <div style={{ marginTop: '0.75rem' }}>
-                <NetworkSection
-                  title={`Akt ${sceneAct}, scene ${sceneId}`}
-                  network={sceneNet.network}
-                  femaleMap={femaleMap}
-                  wordCounts={sceneNet.wordCounts}
-                  width={isWide ? 520 : 360}
-                  height={isWide ? 520 : 360}
-                />
-              </div>
+              {sceneAct && sceneId && sceneDialogs.length > 0 ? (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <NetworkSection
+                    title={`Akt ${sceneAct}, scene ${sceneId}`}
+                    network={sceneNet.network}
+                    femaleMap={femaleMap}
+                    wordCounts={sceneNet.wordCounts}
+                    width={isWide ? 520 : 360}
+                    height={isWide ? 520 : 360}
+                  />
+                </div>
+              ) : (
+                <p style={{ marginTop: '0.75rem', color: THEME.subtle }}>Ingen dialoger i valgt scene.</p>
+              )}
             </div>
+          ) : (
+            <p style={{ color: THEME.subtle, marginTop: '1rem' }}>Ingen scenedialoger tilgjengelig for dette stykket.</p>
           )}
 
             <StatsPanel play={selectedPlay} selectedActWordCounts={actWordCounts} onShowDialogList={handleShowDialogList} />
