@@ -802,6 +802,7 @@ const [pairSortKeyAll, setPairSortKeyAll] = useState('words')
 const [pairSortDirAll, setPairSortDirAll] = useState('desc')
 const [sceneAct, setSceneAct] = useState('')
 const [sceneId, setSceneId] = useState('')
+const [sceneIndex, setSceneIndex] = useState(0)
 
   useEffect(() => {
     fetch('./ibsen_networks.json')
@@ -935,28 +936,39 @@ const [sceneId, setSceneId] = useState('')
     return result
   }, [selectedPlay])
 
+  const sceneSequence = useMemo(() => {
+    const seq = []
+    for (const entry of scenesByAct) {
+      for (const s of entry.scenes) {
+        seq.push({ act: entry.act, scene: s })
+      }
+    }
+    return seq
+  }, [scenesByAct])
+
   useEffect(() => {
-    if (!selectedPlay?.dialogs?.length) {
+    if (sceneSequence.length === 0) {
       setSceneAct('')
       setSceneId('')
+      setSceneIndex(0)
       return
     }
-    const firstAct = scenesByAct[0]?.act
-    const firstScene = scenesByAct[0]?.scenes?.[0]
-    if (!firstAct || !firstScene) {
-      setSceneAct('')
-      setSceneId('')
-      return
+    const idx = Math.min(sceneIndex, sceneSequence.length - 1)
+    const entry = sceneSequence[idx]
+    if (!entry) return
+    if (sceneAct !== entry.act || sceneId !== entry.scene) {
+      setSceneAct(entry.act)
+      setSceneId(entry.scene)
     }
-    if (!sceneAct) {
-      setSceneAct(firstAct)
+  }, [sceneSequence, sceneIndex, sceneAct, sceneId])
+
+  useEffect(() => {
+    if (sceneSequence.length === 0) return
+    const idx = sceneSequence.findIndex(e => e.act === sceneAct && e.scene === sceneId)
+    if (idx >= 0 && idx !== sceneIndex) {
+      setSceneIndex(idx)
     }
-    const entry = scenesByAct.find(s => s.act === (sceneAct || firstAct))
-    const scenes = entry?.scenes ?? []
-    if (!scenes.includes(sceneId)) {
-      setSceneId(scenes[0] || firstScene)
-    }
-  }, [selectedPlay, scenesByAct, sceneAct, sceneId])
+  }, [sceneAct, sceneId, sceneSequence, sceneIndex])
 
   const sceneDialogs = useMemo(() => {
     if (!sceneAct || !sceneId) return []
@@ -1261,9 +1273,9 @@ const [sceneId, setSceneId] = useState('')
 
           {scenesByAct.length > 0 ? (
             <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow, marginTop: '1rem' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
-                <h3 style={{ marginTop: 0, marginBottom: 0 }}>Scenenettverk (fra dialoger)</h3>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: 0 }}>Scenenettverk (fra dialoger)</h3>
                   <label>
                     Akt:{' '}
                     <select value={sceneAct} onChange={(e) => setSceneAct(e.target.value)} style={{ padding: '0.35rem', borderRadius: '8px', border: `1px solid ${THEME.border}` }}>
@@ -1287,6 +1299,25 @@ const [sceneId, setSceneId] = useState('')
                   <span style={{ color: THEME.subtle }}>
                     Dialoger i scene: {sceneDialogs.length}
                   </span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <button
+                    onClick={() => setSceneIndex(Math.max(0, sceneIndex - 1))}
+                    disabled={sceneSequence.length === 0 || sceneIndex <= 0}
+                    style={{ padding: '0.4rem 0.65rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: sceneIndex <= 0 ? 'not-allowed' : 'pointer' }}
+                  >
+                    ◀
+                  </button>
+                  <span style={{ color: THEME.subtle }}>
+                    {sceneSequence.length > 0 ? `Scene ${sceneIndex + 1} / ${sceneSequence.length}` : 'Ingen scener'}
+                  </span>
+                  <button
+                    onClick={() => setSceneIndex(Math.min(sceneSequence.length - 1, sceneIndex + 1))}
+                    disabled={sceneSequence.length === 0 || sceneIndex >= sceneSequence.length - 1}
+                    style={{ padding: '0.4rem 0.65rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: sceneIndex >= sceneSequence.length - 1 ? 'not-allowed' : 'pointer' }}
+                  >
+                    ▶
+                  </button>
                 </div>
               </div>
               {sceneAct && sceneId && sceneDialogs.length > 0 ? (
