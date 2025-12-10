@@ -106,6 +106,51 @@ function computeSpeechStats(network, femaleMap = {}, wordCounts = null) {
   return { nodes, edges }
 }
 
+function buildSceneNetwork(dialogs, femaleMap = {}) {
+  const nodesMap = new Map()
+  const edgeMap = new Map()
+
+  const ensureNode = (id) => {
+    if (!id) return
+    if (!nodesMap.has(id)) {
+      nodesMap.set(id, { id, gender: normalizeGender(id, undefined, femaleMap) })
+    }
+  }
+
+  for (const d of dialogs) {
+    const speakers = Array.isArray(d.speakers) ? d.speakers : []
+    if (speakers.length < 2) continue
+    speakers.forEach(ensureNode)
+    const wordsPerSpeaker = (d.total_words ?? 0) / speakers.length
+    for (const s of speakers) {
+      const n = nodesMap.get(s)
+      n.words = (n.words ?? 0) + wordsPerSpeaker
+    }
+    // behandle parvis (typisk 2-speakers dialog)
+    for (let i = 0; i < speakers.length; i++) {
+      for (let j = i + 1; j < speakers.length; j++) {
+        const a = speakers[i]
+        const b = speakers[j]
+        const key = `${a}|${b}`
+        if (!edgeMap.has(key)) {
+          edgeMap.set(key, { source: a, target: b, count: 0, weight: 0 })
+        }
+        const e = edgeMap.get(key)
+        e.count += d.length ?? 1
+        e.weight += d.total_words ?? 0
+      }
+    }
+  }
+
+  const nodes = Array.from(nodesMap.values())
+  const edges = Array.from(edgeMap.values())
+  const wordCounts = nodes.map(n => ({ character: n.id, words: Math.round(n.words ?? 0) }))
+  return {
+    network: { nodes, edges },
+    wordCounts,
+  }
+}
+
 // Enkel sirkulær nettverksgraf i SVG
 function NetworkGraph({ nodes, edges, width = 420, height = 420 }) {
   if (!nodes || nodes.length === 0) return <p>Ingen noder å vise.</p>
@@ -755,6 +800,8 @@ function App() {
   const [dialogModal, setDialogModal] = useState({ open: false, dialogs: [], title: '' })
 const [pairSortKeyAll, setPairSortKeyAll] = useState('words')
 const [pairSortDirAll, setPairSortDirAll] = useState('desc')
+const [sceneAct, setSceneAct] = useState('')
+const [sceneId, setSceneId] = useState('')
 
   useEffect(() => {
     fetch('./ibsen_networks.json')
@@ -870,6 +917,56 @@ const [pairSortDirAll, setPairSortDirAll] = useState('desc')
   const handleShowDialogList = (dialogs, title) => {
     setDialogModal({ open: true, dialogs: dialogs ?? [], title: displayTitle(title) })
   }
+
+  const scenesByAct = useMemo(() => {
+    const byAct = new Map()
+    const ds = selectedPlay?.dialogs ?? []
+    for (const d of ds) {
+      const act = d.act
+      const scene = d.scene
+      if (!act || !scene) continue
+      if (!byAct.has(act)) byAct.set(act, new Set())
+      byAct.get(act).add(scene)
+    }
+    const result = Array.from(byAct.entries()).map(([act, scenes]) => ({
+      act,
+      scenes: Array.from(scenes).sort((a, b) => Number(a) - Number(b)),
+    })).sort((a, b) => Number(a.act) - Number(b.act))
+    return result
+  }, [selectedPlay])
+
+  useEffect(() => {
+    if (!selectedPlay?.dialogs?.length) {
+      setSceneAct('')
+      setSceneId('')
+      return
+    }
+    const first = scenesByAct[0]
+    if (first) {
+      setSceneAct(first.act)
+      setSceneId(first.scenes[0])
+    } else {
+      setSceneAct('')
+      setSceneId('')
+    }
+  }, [selectedPlay, scenesByAct])
+
+  useEffect(() => {
+    // when act changes, pick first scene in that act
+    const entry = scenesByAct.find(s => s.act === sceneAct)
+    if (entry && entry.scenes.length > 0) {
+      if (!entry.scenes.includes(sceneId)) {
+        setSceneId(entry.scenes[0])
+      }
+    }
+  }, [sceneAct, sceneId, scenesByAct])
+
+  const sceneDialogs = useMemo(() => {
+    if (!sceneAct || !sceneId) return []
+    return (selectedPlay?.dialogs ?? []).filter(d => d.act === sceneAct && d.scene === sceneId && Array.isArray(d.speakers) && d.speakers.length >= 2)
+  }, [selectedPlay, sceneAct, sceneId])
+
+  const sceneNet = useMemo(() => buildSceneNetwork(sceneDialogs, femaleMap), [sceneDialogs, femaleMap])
 
   const pairStatsAll = useMemo(() => {
     const map = new Map()
@@ -1161,6 +1258,49 @@ const [pairSortDirAll, setPairSortDirAll] = useState('desc')
                     })}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {sceneAct && sceneId && sceneDialogs.length > 0 && (
+            <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow, marginTop: '1rem' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+                <h3 style={{ marginTop: 0, marginBottom: 0 }}>Scenenettverk (fra dialoger)</h3>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <label>
+                    Akt:{' '}
+                    <select value={sceneAct} onChange={(e) => setSceneAct(e.target.value)} style={{ padding: '0.35rem', borderRadius: '8px', border: `1px solid ${THEME.border}` }}>
+                      {scenesByAct.map(a => (
+                        <option key={a.act} value={a.act}>
+                          {a.act}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Scene:{' '}
+                    <select value={sceneId} onChange={(e) => setSceneId(e.target.value)} style={{ padding: '0.35rem', borderRadius: '8px', border: `1px solid ${THEME.border}` }}>
+                      {(scenesByAct.find(s => s.act === sceneAct)?.scenes ?? []).map(s => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <span style={{ color: THEME.subtle }}>
+                    Dialoger i scene: {sceneDialogs.length}
+                  </span>
+                </div>
+              </div>
+              <div style={{ marginTop: '0.75rem' }}>
+                <NetworkSection
+                  title={`Akt ${sceneAct}, scene ${sceneId}`}
+                  network={sceneNet.network}
+                  femaleMap={femaleMap}
+                  wordCounts={sceneNet.wordCounts}
+                  width={isWide ? 520 : 360}
+                  height={isWide ? 520 : 360}
+                />
               </div>
             </div>
           )}
