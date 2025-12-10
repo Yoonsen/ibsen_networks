@@ -29,3 +29,5 @@
 - Bechdel-dialogliste med filter (ingen mannlige pron), sortering (lengde/ord/pron), og per-par intensitet også inne i dialog-modal.
 - Skjuler verk uten orddata (0-ord).
 - Dokumentasjon/vedlikehold: data-README m/ID-normalisering (URN/dhlabid), manifest/architecture oppdatert tidligere; datastruktur-dokument flyttet til `legacy/`.
+- Scenenettverk fra dialoger (akt/scene-velger + stepper), gjenbruker globalt layout for stabilitet.
+- Plan: se på `parsed.json` og eventuelt koble inn fulltekst for utdrag og navigasjon.
