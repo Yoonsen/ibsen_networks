@@ -983,12 +983,11 @@ const [sceneIndex, setSceneIndex] = useState(0)
     }
     const idx = Math.min(sceneIndex, sceneSequence.length - 1)
     const entry = sceneSequence[idx]
-    if (!entry) return
-    if (sceneAct !== entry.act || sceneId !== entry.scene) {
+    if (entry) {
       setSceneAct(entry.act)
       setSceneId(entry.scene)
     }
-  }, [sceneSequence, sceneIndex, sceneAct, sceneId])
+  }, [sceneSequence, sceneIndex])
 
   useEffect(() => {
     if (sceneSequence.length === 0) return
@@ -996,7 +995,7 @@ const [sceneIndex, setSceneIndex] = useState(0)
     if (idx >= 0 && idx !== sceneIndex) {
       setSceneIndex(idx)
     }
-  }, [sceneAct, sceneId, sceneSequence, sceneIndex])
+  }, [sceneAct, sceneId, sceneSequence])
 
   const sceneDialogs = useMemo(() => {
     if (!sceneAct || !sceneId) return []
