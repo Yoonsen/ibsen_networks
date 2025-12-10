@@ -151,23 +151,46 @@ function buildSceneNetwork(dialogs, femaleMap = {}) {
   }
 }
 
-// Enkel sirkulær nettverksgraf i SVG
-function NetworkGraph({ nodes, edges, width = 420, height = 420 }) {
-  if (!nodes || nodes.length === 0) return <p>Ingen noder å vise.</p>
-
+function computePositions(nodes = [], width = 420, height = 420) {
+  if (!nodes || nodes.length === 0) return null
+  const sorted = [...nodes].sort((a, b) => (a.id || '').localeCompare(b.id || ''))
   const cx = width / 2
   const cy = height / 2
   const radius = Math.min(width, height) * 0.35
-
-  const nodePositions = new Map()
-  const n = nodes.length
-
-  nodes.forEach((node, i) => {
+  const map = new Map()
+  const n = sorted.length
+  sorted.forEach((node, i) => {
     const angle = (2 * Math.PI * i) / n - Math.PI / 2
     const x = cx + radius * Math.cos(angle)
     const y = cy + radius * Math.sin(angle)
-    nodePositions.set(node.name, { x, y })
+    map.set(node.id || node.name, { x, y })
   })
+  return map
+}
+
+// Enkel sirkulær nettverksgraf i SVG
+function NetworkGraph({ nodes, edges, width = 420, height = 420, positions = null, dimInactive = false }) {
+  if (!nodes || nodes.length === 0) return <p>Ingen noder å vise.</p>
+
+  const nodePositions = new Map()
+  if (positions && positions.size > 0) {
+    nodes.forEach(node => {
+      const pos = positions.get(node.name) || positions.get(node.id)
+      if (pos) nodePositions.set(node.name, pos)
+    })
+  }
+  if (nodePositions.size === 0) {
+    const cx = width / 2
+    const cy = height / 2
+    const radius = Math.min(width, height) * 0.35
+    const n = nodes.length
+    nodes.forEach((node, i) => {
+      const angle = (2 * Math.PI * i) / n - Math.PI / 2
+      const x = cx + radius * Math.cos(angle)
+      const y = cy + radius * Math.sin(angle)
+      nodePositions.set(node.name, { x, y })
+    })
+  }
 
   const maxWeight = edges.reduce((m, e) => Math.max(m, e.count ?? e.weight ?? 0), 0)
   const maxTotalLen = nodes.reduce((m, nd) => Math.max(m, nd.totalLen ?? 0), 0)
@@ -936,6 +959,11 @@ const [sceneIndex, setSceneIndex] = useState(0)
     return result
   }, [selectedPlay])
 
+  const globalPositions = useMemo(() => {
+    const size = isWide ? 520 : 360
+    return computePositions(selectedPlay?.speech_network?.nodes ?? [], size, size)
+  }, [selectedPlay, isWide])
+
   const sceneSequence = useMemo(() => {
     const seq = []
     for (const entry of scenesByAct) {
@@ -1177,6 +1205,7 @@ const [sceneIndex, setSceneIndex] = useState(0)
                   title="Globalt talenettverk"
                   network={selectedPlay.speech_network}
                   femaleMap={femaleMap}
+                  positions={globalPositions}
                   wordCounts={selectedPlay.word_counts}
                   width={isWide ? 520 : 360}
                   height={isWide ? 520 : 360}
@@ -1327,6 +1356,7 @@ const [sceneIndex, setSceneIndex] = useState(0)
                     network={sceneNet.network}
                     femaleMap={femaleMap}
                     wordCounts={sceneNet.wordCounts}
+                    positions={globalPositions}
                     width={isWide ? 520 : 360}
                     height={isWide ? 520 : 360}
                   />
