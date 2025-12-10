@@ -446,22 +446,44 @@ function StatsPanel({ play, selectedActWordCounts, onShowDialogList }) {
   )
 }
 
-function PlaySelector({ plays, selectedId, onChange }) {
+function PlaySelector({ plays, selectedId, onChange, filterQuery, onFilterChange }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxWidth: '24rem' }}>
-      <span>Velg skuespill</span>
-      <select
-        value={selectedId ?? ''}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ padding: '0.5rem', fontSize: '1rem', borderRadius: '4px' }}
-      >
-        {plays.map(p => (
-          <option key={p.id || p.title} value={p.id || p.title}>
-            {displayTitle(p.title)}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxWidth: '26rem' }}>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+        <span>Velg skuespill</span>
+        <input
+          type="text"
+          value={filterQuery}
+          onChange={(e) => onFilterChange(e.target.value)}
+          placeholder="Søk etter tittel/id..."
+          style={{ padding: '0.55rem', borderRadius: '10px', border: `1px solid ${THEME.border}` }}
+        />
+      </label>
+      <div style={{ maxHeight: '14rem', overflowY: 'auto', border: `1px solid ${THEME.border}`, borderRadius: '10px', background: '#fff' }}>
+        {plays.map(p => {
+          const isSel = (p.id || p.title) === selectedId
+          return (
+            <button
+              key={p.id || p.title}
+              onClick={() => onChange(p.id || p.title)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '0.5rem 0.65rem',
+                background: isSel ? THEME.accentSoft : 'transparent',
+                color: THEME.text,
+                border: 'none',
+                borderBottom: `1px solid ${THEME.border}`,
+                cursor: 'pointer',
+              }}
+            >
+              {displayTitle(p.title)}
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -701,6 +723,7 @@ function App() {
   const [error, setError] = useState(null)
   const [selectedId, setSelectedId] = useState('')
   const [selectedAct, setSelectedAct] = useState('')
+  const [playFilter, setPlayFilter] = useState('')
   const [isWide, setIsWide] = useState(
     () => (typeof window !== 'undefined' ? window.innerWidth >= 900 : true)
   )
@@ -726,6 +749,24 @@ function App() {
     })
   }, [data])
   const femaleMap = data?.FEMALE_CHARACTERS ?? {}
+  const filteredPlays = useMemo(() => {
+    const q = playFilter.trim().toLowerCase()
+    if (!q) return plays
+    const res = plays.filter(p => {
+      const id = (p.id || '').toLowerCase()
+      const title = (p.title || '').toLowerCase()
+      return id.includes(q) || title.includes(q) || displayTitle(p.title).toLowerCase().includes(q)
+    })
+    // sørg for at valgt stykke fortsatt er synlig i listen selv om filtret ekskluderer det
+    if (selectedId) {
+      const has = res.some(p => (p.id || p.title) === selectedId)
+      if (!has) {
+        const sel = plays.find(p => (p.id || p.title) === selectedId)
+        if (sel) res.unshift(sel)
+      }
+    }
+    return res
+  }, [plays, playFilter, selectedId])
 
   const playsWithMeta = useMemo(() => {
     return plays.map(p => {
@@ -952,7 +993,13 @@ function App() {
         )}
 
         <div style={{ marginTop: '0.75rem', marginBottom: '1rem' }}>
-          <PlaySelector plays={plays} selectedId={selectedId} onChange={setSelectedId} />
+          <PlaySelector
+            plays={filteredPlays}
+            selectedId={selectedId}
+            onChange={setSelectedId}
+            filterQuery={playFilter}
+            onFilterChange={setPlayFilter}
+          />
         </div>
 
         {!selectedPlay ? (
