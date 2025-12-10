@@ -21,3 +21,11 @@
   - `architecture.md` – kort beskrivelse av stack, layout og dataflyt.
   - `todo.md` – liste over videre arbeid (scatterplot, nettverk, PWA).
   - `logbook.md` – denne loggen.
+
+## 2025-12-10
+
+- UI-utvidelser: global stat-chips, søkbar combobox for stykker, par-intensitet (topp 10) med sortering, dialog-modal med filter/sortering/badges.
+- Taler-/ordtabell basert på faktiske `word_counts` (ikke overgangsestimat); heatmap per akt/karakter.
+- Bechdel-dialogliste med filter (ingen mannlige pron), sortering (lengde/ord/pron), og per-par intensitet også inne i dialog-modal.
+- Skjuler verk uten orddata (0-ord).
+- Dokumentasjon/vedlikehold: data-README m/ID-normalisering (URN/dhlabid), manifest/architecture oppdatert tidligere; datastruktur-dokument flyttet til `legacy/`.
