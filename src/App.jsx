@@ -1633,6 +1633,12 @@ const actTurnStrips = useMemo(() => {
                     >
                       Steg
                     </button>
+                    <button
+                      onClick={() => { setPulseIndex(0); setPulsePlaying(false); setPulseWeights(new Map()); setPulsePositions(pulseAnchors); setDraggingId(null) }}
+                      style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
+                    >
+                      Stopp
+                    </button>
                       <button
                         onClick={() => { setPulseIndex(0); setPulsePlaying(false); setPulseWeights(new Map()); setPulsePositions(pulseAnchors); setDraggingId(null) }}
                         style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
