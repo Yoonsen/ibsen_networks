@@ -1270,6 +1270,9 @@ useEffect(() => {
     setPulsePlaying(false)
     return
   }
+  if (pulseAnchors.size === 0) return
+  const viewSize = isWide ? 520 : 360
+  const clampCoord = (v) => Math.max(8, Math.min(viewSize - 8, v ?? 0))
   const pair = pulseTurnPairs[pulseIndex]
   // simple attraction between current pair and anchor spring
   setPulsePositions(prev => {
@@ -1282,8 +1285,8 @@ useEffect(() => {
       const ay = a.y + (b.y - a.y) * k
       const bx = b.x + (a.x - b.x) * k
       const by = b.y + (a.y - b.y) * k
-      next.set(pair.from, { x: ax, y: ay })
-      next.set(pair.to, { x: bx, y: by })
+      next.set(pair.from, { x: clampCoord(ax), y: clampCoord(ay) })
+      next.set(pair.to, { x: clampCoord(bx), y: clampCoord(by) })
     }
     // pull all nodes slightly toward anchors to avoid drift
     for (const id of pulseNodes) {
@@ -1294,8 +1297,8 @@ useEffect(() => {
         const py = p?.y ?? anchor.y
         const ka = 0.04
         next.set(id, {
-          x: px + (anchor.x - px) * ka,
-          y: py + (anchor.y - py) * ka,
+          x: clampCoord(px + (anchor.x - px) * ka),
+          y: clampCoord(py + (anchor.y - py) * ka),
         })
       }
     }
@@ -1631,7 +1634,7 @@ const actTurnStrips = useMemo(() => {
                       Steg
                     </button>
                       <button
-                        onClick={() => { setPulseIndex(0); setPulsePlaying(false); setPulseWeights(new Map()); setPulsePositions(pulseAnchors) }}
+                        onClick={() => { setPulseIndex(0); setPulsePlaying(false); setPulseWeights(new Map()); setPulsePositions(pulseAnchors); setDraggingId(null) }}
                         style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
                       >
                         Reset
@@ -1642,6 +1645,7 @@ const actTurnStrips = useMemo(() => {
                           setPulseWeights(new Map())
                           setPulseIndex(0)
                           setPulsePlaying(false)
+                          setDraggingId(null)
                         }}
                         style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
                       >
