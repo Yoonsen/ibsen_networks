@@ -1289,11 +1289,13 @@ useEffect(() => {
     for (const id of pulseNodes) {
       const p = next.get(id)
       const anchor = pulseAnchors.get(id)
-      if (p && anchor) {
+      if (anchor) {
+        const px = p?.x ?? anchor.x
+        const py = p?.y ?? anchor.y
         const ka = 0.04
         next.set(id, {
-          x: p.x + (anchor.x - p.x) * ka,
-          y: p.y + (anchor.y - p.y) * ka,
+          x: px + (anchor.x - px) * ka,
+          y: py + (anchor.y - py) * ka,
         })
       }
     }
@@ -1622,12 +1624,12 @@ const actTurnStrips = useMemo(() => {
                       >
                         {pulsePlaying ? 'Pause' : 'Spill'}
                       </button>
-                      <button
-                        onClick={() => setPulseIndex(i => Math.min(i + 1, pulseTurnPairs.length))}
-                        style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
-                      >
-                        Steg
-                      </button>
+                    <button
+                      onClick={() => setPulseIndex(i => Math.min(i + 1, pulseTurnPairs.length))}
+                      style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
+                    >
+                      Steg
+                    </button>
                       <button
                         onClick={() => { setPulseIndex(0); setPulsePlaying(false); setPulseWeights(new Map()); setPulsePositions(pulseAnchors) }}
                         style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
