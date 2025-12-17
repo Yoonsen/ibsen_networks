@@ -917,7 +917,7 @@ const [sandboxSpeed, setSandboxSpeed] = useState(1)
 const [showPulseNet, setShowPulseNet] = useState(false)
 const [pulsePlaying, setPulsePlaying] = useState(false)
 const [pulseIndex, setPulseIndex] = useState(0)
-const [pulseSpeed, setPulseSpeed] = useState(1)
+const [pulseSpeed, setPulseSpeed] = useState(2)
 const [pulseWeights, setPulseWeights] = useState(new Map())
 const [pulsePositions, setPulsePositions] = useState(new Map())
 
@@ -1184,23 +1184,22 @@ const sandboxTurns = useMemo(() => {
   }))
 }, [sceneTurnsData, sceneTurnColors])
 const sandboxVisibleTurns = useMemo(() => sandboxTurns.slice(0, sandboxIndex), [sandboxTurns, sandboxIndex])
+const pulseNodes = useMemo(() => {
+  const ids = new Set()
+  for (const t of sceneTurnsData?.turns ?? []) ids.add(t.speaker)
+  return Array.from(ids)
+}, [sceneTurnsData])
 const pulseAnchors = useMemo(() => {
   const map = new Map()
   const size = isWide ? 520 : 360
-  const nodes = sceneNet.network?.nodes ?? []
+  const nodes = pulseNodes.map(id => ({ id }))
   const pos = computePositions(nodes, size, size) || new Map()
   nodes.forEach(n => {
     const p = pos.get(n.id)
     if (p) map.set(n.id, p)
   })
   return map
-}, [sceneNet, isWide])
-const pulseNodes = useMemo(() => {
-  const ids = new Set()
-  for (const n of sceneNet.network?.nodes ?? []) ids.add(n.id)
-  for (const t of sceneTurnsData?.turns ?? []) ids.add(t.speaker)
-  return Array.from(ids)
-}, [sceneNet, sceneTurnsData])
+}, [pulseNodes, isWide])
 const pulseTurnPairs = useMemo(() => {
   const arr = []
   const turns = sceneTurnsData?.turns ?? []
@@ -1259,10 +1258,11 @@ useEffect(() => {
     const a = next.get(pair.from) || pulseAnchors.get(pair.from)
     const b = next.get(pair.to) || pulseAnchors.get(pair.to)
     if (a && b) {
-      const ax = a.x + (b.x - a.x) * 0.05
-      const ay = a.y + (b.y - a.y) * 0.05
-      const bx = b.x + (a.x - b.x) * 0.05
-      const by = b.y + (a.y - b.y) * 0.05
+      const k = 0.07 // mutual pull
+      const ax = a.x + (b.x - a.x) * k
+      const ay = a.y + (b.y - a.y) * k
+      const bx = b.x + (a.x - b.x) * k
+      const by = b.y + (a.y - b.y) * k
       next.set(pair.from, { x: ax, y: ay })
       next.set(pair.to, { x: bx, y: by })
     }
@@ -1271,10 +1271,10 @@ useEffect(() => {
       const p = next.get(id)
       const anchor = pulseAnchors.get(id)
       if (p && anchor) {
-        const k = 0.02
+        const ka = 0.04
         next.set(id, {
-          x: p.x + (anchor.x - p.x) * k,
-          y: p.y + (anchor.y - p.y) * k,
+          x: p.x + (anchor.x - p.x) * ka,
+          y: p.y + (anchor.y - p.y) * ka,
         })
       }
     }
@@ -1286,7 +1286,7 @@ useEffect(() => {
     next.set(key, (next.get(key) ?? 0) + 1)
     return next
   })
-  const delay = Math.max(180, Math.min(1600, 400 / pulseSpeed))
+  const delay = Math.max(80, Math.min(800, 220 / pulseSpeed))
   const t = setTimeout(() => setPulseIndex(i => Math.min(i + 1, pulseTurnPairs.length)), delay)
   return () => clearTimeout(t)
 }, [pulsePlaying, pulseIndex, pulseTurnPairs, pulseSpeed, pulseAnchors, pulseNodes])
@@ -2258,7 +2258,7 @@ const actTurnStrips = useMemo(() => {
                     </button>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: THEME.subtle }}>
                       Hastighet:
-                      <input type="range" min="0.5" max="3" step="0.1" value={pulseSpeed} onChange={e => setPulseSpeed(Number(e.target.value))} />
+                      <input type="range" min="0.5" max="5" step="0.1" value={pulseSpeed} onChange={e => setPulseSpeed(Number(e.target.value))} />
                       <span style={{ minWidth: '2.5rem', textAlign: 'right', color: THEME.text }}>{pulseSpeed.toFixed(1)}x</span>
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: THEME.subtle }}>
