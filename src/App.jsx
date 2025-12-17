@@ -1593,7 +1593,7 @@ const actTurnStrips = useMemo(() => {
               <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow, marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                   <div>
-                    <h3 style={{ margin: 0 }}>Eksperimentell: pulserende scenenettverk</h3>
+                    <h3 style={{ margin: 0 }}>Eksperimentell: pulserende scenenettverk{sceneAct ? ` – Akt ${sceneAct}` : ''}{sceneId ? `, scene ${sceneId}` : ''}</h3>
                     <p style={{ margin: 0, color: THEME.subtle, fontSize: '0.9rem' }}>Spill av replikker som pulser på scenenettverket (akt/scene).</p>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -1614,7 +1614,7 @@ const actTurnStrips = useMemo(() => {
                 </div>
                 {showPulseNet && (
                   <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
                       <button
                         onClick={() => {
                           if (pulseIndex >= pulseTurnPairs.length) setPulseIndex(0)
