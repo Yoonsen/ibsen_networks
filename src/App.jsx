@@ -910,6 +910,10 @@ const [turnHover, setTurnHover] = useState(null)     // stripe hover (scene)
 const [turnBarHover, setTurnBarHover] = useState(null) // bar hover (scene)
 const [actTurnHover, setActTurnHover] = useState(null) // stripe hover (act)
 const [actBarHover, setActBarHover] = useState(null)   // bar hover (act)
+const [showSandbox, setShowSandbox] = useState(false)
+const [sandboxPlaying, setSandboxPlaying] = useState(false)
+const [sandboxIndex, setSandboxIndex] = useState(0)
+const [sandboxSpeed, setSandboxSpeed] = useState(1)
 
   useEffect(() => {
     fetch('./ibsen_networks.json')
@@ -1135,6 +1139,67 @@ const sceneTurnColors = useMemo(() => {
   }
   return map
 }, [sceneTurnsData])
+const sandboxTurns = useMemo(() => {
+  if (!sceneTurnsData?.turns) return []
+  const maxWords = sceneTurnsData.totalWords || 1
+  const positions = []
+  const lastPos = new Map()
+  let cursorX = 20
+  let cursorY = 20
+  const wrapWidth = 620
+  const rowHeight = 80
+  const jitter = (speaker, idx) => {
+    const h = hashString(`${speaker}-${idx}`)
+    return (h % 9) - 4
+  }
+  sceneTurnsData.turns.forEach((t, idx) => {
+    const color = sceneTurnColors.get(t.speaker) ?? GENDER_COLORS[t.gender] ?? '#6b7280'
+    let pos
+    if (lastPos.has(t.speaker)) {
+      pos = lastPos.get(t.speaker)
+    } else {
+      pos = { x: cursorX, y: cursorY }
+      const jitterVal = jitter(t.speaker, idx)
+      pos.x += jitterVal
+      pos.y += jitterVal
+      cursorX += TURN_BAR_WIDTH
+      if (cursorX > wrapWidth) {
+        cursorX = 20
+        cursorY += rowHeight
+      }
+    }
+    lastPos.set(t.speaker, pos)
+    positions.push({ ...pos, color, words: t.words ?? 0, speaker: t.speaker })
+  })
+  const maxH = Math.max(...positions.map(p => p.words || 0), 1)
+  return positions.map(p => ({
+    ...p,
+    height: Math.max(10, (p.words / maxH) * 120),
+  }))
+}, [sceneTurnsData, sceneTurnColors])
+const sandboxVisibleTurns = useMemo(() => sandboxTurns.slice(0, sandboxIndex), [sandboxTurns, sandboxIndex])
+
+useEffect(() => {
+  setSandboxIndex(0)
+  setSandboxPlaying(false)
+  setTurnBarHover(null)
+  setActBarHover(null)
+}, [sceneAct, sceneId, selectedPlay])
+
+useEffect(() => {
+  if (!sandboxPlaying) return
+  if (!sandboxTurns || sandboxTurns.length === 0) return
+  if (sandboxIndex >= sandboxTurns.length) {
+    setSandboxPlaying(false)
+    return
+  }
+  const words = sandboxTurns[sandboxIndex]?.words ?? 1
+  const duration = Math.max(300, Math.min(2200, (200 + words * 30) / sandboxSpeed))
+  const t = setTimeout(() => {
+    setSandboxIndex((idx) => Math.min(idx + 1, sandboxTurns.length))
+  }, duration)
+  return () => clearTimeout(t)
+}, [sandboxPlaying, sandboxIndex, sandboxTurns, sandboxSpeed])
 const sceneTurnLegend = useMemo(() => {
   if (!sceneTurnsData?.turns) return []
   const map = new Map()
@@ -1973,6 +2038,76 @@ const actTurnStrips = useMemo(() => {
             </div>
           ) : (
             <p style={{ color: THEME.subtle, marginTop: '1rem' }}>Ingen scenedialoger tilgjengelig for dette stykket.</p>
+          )}
+
+          {sandboxTurns.length > 0 && (
+            <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow, marginTop: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'space-between' }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>Eksperimentell: animert turn-sandbox</h3>
+                  <p style={{ margin: 0, color: THEME.subtle, fontSize: '0.9rem' }}>Visualiser replikker som bevegelige ovale figurer. Påvirker ikke øvrig UI.</p>
+                </div>
+                <button
+                  onClick={() => setShowSandbox(v => !v)}
+                  style={{ padding: '0.45rem 0.75rem', borderRadius: '10px', border: `1px solid ${THEME.border}`, background: showSandbox ? THEME.accentSoft : '#fff', color: showSandbox ? THEME.accent : THEME.text, cursor: 'pointer' }}
+                >
+                  {showSandbox ? 'Skjul sandbox' : 'Vis sandbox'}
+                </button>
+              </div>
+              {showSandbox && (
+                <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                    <button
+                      onClick={() => {
+                        if (sandboxIndex >= sandboxTurns.length) setSandboxIndex(0)
+                        setSandboxPlaying(p => !p)
+                      }}
+                      style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: sandboxPlaying ? THEME.accentSoft : '#fff', color: sandboxPlaying ? THEME.accent : THEME.text, cursor: 'pointer' }}
+                    >
+                      {sandboxPlaying ? 'Pause' : 'Spill'}
+                    </button>
+                    <button
+                      onClick={() => setSandboxIndex(i => Math.min(i + 1, sandboxTurns.length))}
+                      style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
+                    >
+                      Steg
+                    </button>
+                    <button
+                      onClick={() => { setSandboxIndex(0); setSandboxPlaying(false); setTurnBarHover(null) }}
+                      style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
+                    >
+                      Reset
+                    </button>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: THEME.subtle }}>
+                      Hastighet:
+                      <input type="range" min="0.5" max="3" step="0.1" value={sandboxSpeed} onChange={e => setSandboxSpeed(Number(e.target.value))} />
+                      <span style={{ minWidth: '2.5rem', textAlign: 'right', color: THEME.text }}>{sandboxSpeed.toFixed(1)}x</span>
+                    </label>
+                    <span style={{ color: THEME.subtle }}>Tur {Math.min(sandboxIndex, sandboxTurns.length)} / {sandboxTurns.length}</span>
+                  </div>
+
+                  <div style={{ position: 'relative', border: `1px solid ${THEME.border}`, borderRadius: '12px', background: '#f8fafc', height: 260, overflow: 'hidden' }}>
+                    {sandboxVisibleTurns.map((t, idx) => (
+                      <div
+                        key={`${t.speaker}-${idx}`}
+                        style={{
+                          position: 'absolute',
+                          left: `${t.x}px`,
+                          top: `${t.y}px`,
+                          width: 26,
+                          height: t.height,
+                          borderRadius: '50% / 70%',
+                          background: t.color,
+                          boxShadow: '0 4px 10px rgba(0,0,0,0.12)',
+                          transition: 'transform 0.4s ease, opacity 0.4s ease',
+                        }}
+                        title={`${t.speaker}: ${Math.round(t.words)} ord`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
             <StatsPanel play={selectedPlay} selectedActWordCounts={actWordCounts} onShowDialogList={handleShowDialogList} />
