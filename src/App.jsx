@@ -914,6 +914,12 @@ const [showSandbox, setShowSandbox] = useState(false)
 const [sandboxPlaying, setSandboxPlaying] = useState(false)
 const [sandboxIndex, setSandboxIndex] = useState(0)
 const [sandboxSpeed, setSandboxSpeed] = useState(1)
+const [showPulseNet, setShowPulseNet] = useState(false)
+const [pulsePlaying, setPulsePlaying] = useState(false)
+const [pulseIndex, setPulseIndex] = useState(0)
+const [pulseSpeed, setPulseSpeed] = useState(1)
+const [pulseWeights, setPulseWeights] = useState(new Map())
+const [pulsePositions, setPulsePositions] = useState(new Map())
 
   useEffect(() => {
     fetch('./ibsen_networks.json')
@@ -1178,6 +1184,31 @@ const sandboxTurns = useMemo(() => {
   }))
 }, [sceneTurnsData, sceneTurnColors])
 const sandboxVisibleTurns = useMemo(() => sandboxTurns.slice(0, sandboxIndex), [sandboxTurns, sandboxIndex])
+const pulseAnchors = useMemo(() => {
+  const map = new Map()
+  const size = isWide ? 520 : 360
+  const nodes = sceneNet.network?.nodes ?? []
+  const pos = computePositions(nodes, size, size) || new Map()
+  nodes.forEach(n => {
+    const p = pos.get(n.id)
+    if (p) map.set(n.id, p)
+  })
+  return map
+}, [sceneNet, isWide])
+const pulseNodes = useMemo(() => {
+  const ids = new Set()
+  for (const n of sceneNet.network?.nodes ?? []) ids.add(n.id)
+  for (const t of sceneTurnsData?.turns ?? []) ids.add(t.speaker)
+  return Array.from(ids)
+}, [sceneNet, sceneTurnsData])
+const pulseTurnPairs = useMemo(() => {
+  const arr = []
+  const turns = sceneTurnsData?.turns ?? []
+  for (let i = 1; i < turns.length; i++) {
+    arr.push({ from: turns[i - 1].speaker, to: turns[i].speaker })
+  }
+  return arr
+}, [sceneTurnsData])
 
 useEffect(() => {
   setSandboxIndex(0)
@@ -1200,6 +1231,65 @@ useEffect(() => {
   }, duration)
   return () => clearTimeout(t)
 }, [sandboxPlaying, sandboxIndex, sandboxTurns, sandboxSpeed])
+
+useEffect(() => {
+  // reset pulse state on scene change
+  const initPos = new Map()
+  pulseNodes.forEach(id => {
+    const anchor = pulseAnchors.get(id)
+    if (anchor) initPos.set(id, { x: anchor.x, y: anchor.y })
+  })
+  setPulsePositions(initPos)
+  setPulseWeights(new Map())
+  setPulseIndex(0)
+  setPulsePlaying(false)
+}, [sceneAct, sceneId, pulseAnchors, pulseNodes])
+
+useEffect(() => {
+  if (!pulsePlaying) return
+  if (pulseTurnPairs.length === 0) return
+  if (pulseIndex >= pulseTurnPairs.length) {
+    setPulsePlaying(false)
+    return
+  }
+  const pair = pulseTurnPairs[pulseIndex]
+  // simple attraction between current pair and anchor spring
+  setPulsePositions(prev => {
+    const next = new Map(prev)
+    const a = next.get(pair.from) || pulseAnchors.get(pair.from)
+    const b = next.get(pair.to) || pulseAnchors.get(pair.to)
+    if (a && b) {
+      const ax = a.x + (b.x - a.x) * 0.05
+      const ay = a.y + (b.y - a.y) * 0.05
+      const bx = b.x + (a.x - b.x) * 0.05
+      const by = b.y + (a.y - b.y) * 0.05
+      next.set(pair.from, { x: ax, y: ay })
+      next.set(pair.to, { x: bx, y: by })
+    }
+    // pull all nodes slightly toward anchors to avoid drift
+    for (const id of pulseNodes) {
+      const p = next.get(id)
+      const anchor = pulseAnchors.get(id)
+      if (p && anchor) {
+        const k = 0.02
+        next.set(id, {
+          x: p.x + (anchor.x - p.x) * k,
+          y: p.y + (anchor.y - p.y) * k,
+        })
+      }
+    }
+    return next
+  })
+  setPulseWeights(prev => {
+    const next = new Map(prev)
+    const key = `${pair.from}|${pair.to}`
+    next.set(key, (next.get(key) ?? 0) + 1)
+    return next
+  })
+  const delay = Math.max(180, Math.min(1600, 400 / pulseSpeed))
+  const t = setTimeout(() => setPulseIndex(i => Math.min(i + 1, pulseTurnPairs.length)), delay)
+  return () => clearTimeout(t)
+}, [pulsePlaying, pulseIndex, pulseTurnPairs, pulseSpeed, pulseAnchors, pulseNodes])
 const sceneTurnLegend = useMemo(() => {
   if (!sceneTurnsData?.turns) return []
   const map = new Map()
@@ -2079,6 +2169,24 @@ const actTurnStrips = useMemo(() => {
                       Reset
                     </button>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: THEME.subtle }}>
+                      Pos:
+                      <input
+                        type="range"
+                        min="0"
+                        max={sandboxTurns.length}
+                        step="1"
+                        value={sandboxIndex}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          setSandboxPlaying(false)
+                          setSandboxIndex(v)
+                        }}
+                      />
+                      <span style={{ minWidth: '3.5rem', textAlign: 'right', color: THEME.text }}>
+                        {Math.min(sandboxIndex, sandboxTurns.length)} / {sandboxTurns.length}
+                      </span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: THEME.subtle }}>
                       Hastighet:
                       <input type="range" min="0.5" max="3" step="0.1" value={sandboxSpeed} onChange={e => setSandboxSpeed(Number(e.target.value))} />
                       <span style={{ minWidth: '2.5rem', textAlign: 'right', color: THEME.text }}>{sandboxSpeed.toFixed(1)}x</span>
@@ -2105,6 +2213,100 @@ const actTurnStrips = useMemo(() => {
                       />
                     ))}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {pulseTurnPairs.length > 0 && (
+            <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow, marginTop: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>Eksperimentell: pulserende scenenettverk</h3>
+                  <p style={{ margin: 0, color: THEME.subtle, fontSize: '0.9rem' }}>Spill av replikker som pulser på scenenettverket (akt/scene).</p>
+                </div>
+                <button
+                  onClick={() => setShowPulseNet(v => !v)}
+                  style={{ padding: '0.45rem 0.75rem', borderRadius: '10px', border: `1px solid ${THEME.border}`, background: showPulseNet ? THEME.accentSoft : '#fff', color: showPulseNet ? THEME.accent : THEME.text, cursor: 'pointer' }}
+                >
+                  {showPulseNet ? 'Skjul puls' : 'Vis puls'}
+                </button>
+              </div>
+              {showPulseNet && (
+                <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                    <button
+                      onClick={() => {
+                        if (pulseIndex >= pulseTurnPairs.length) setPulseIndex(0)
+                        setPulsePlaying(p => !p)
+                      }}
+                      style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: pulsePlaying ? THEME.accentSoft : '#fff', color: pulsePlaying ? THEME.accent : THEME.text, cursor: 'pointer' }}
+                    >
+                      {pulsePlaying ? 'Pause' : 'Spill'}
+                    </button>
+                    <button
+                      onClick={() => setPulseIndex(i => Math.min(i + 1, pulseTurnPairs.length))}
+                      style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
+                    >
+                      Steg
+                    </button>
+                    <button
+                      onClick={() => { setPulseIndex(0); setPulsePlaying(false); setPulseWeights(new Map()); setPulsePositions(pulseAnchors) }}
+                      style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
+                    >
+                      Reset
+                    </button>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: THEME.subtle }}>
+                      Hastighet:
+                      <input type="range" min="0.5" max="3" step="0.1" value={pulseSpeed} onChange={e => setPulseSpeed(Number(e.target.value))} />
+                      <span style={{ minWidth: '2.5rem', textAlign: 'right', color: THEME.text }}>{pulseSpeed.toFixed(1)}x</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: THEME.subtle }}>
+                      Pos:
+                      <input
+                        type="range"
+                        min="0"
+                        max={pulseTurnPairs.length}
+                        step="1"
+                        value={pulseIndex}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          setPulsePlaying(false)
+                          setPulseIndex(v)
+                        }}
+                      />
+                      <span style={{ minWidth: '3.5rem', textAlign: 'right', color: THEME.text }}>
+                        {Math.min(pulseIndex, pulseTurnPairs.length)} / {pulseTurnPairs.length}
+                      </span>
+                    </label>
+                  </div>
+                  <svg width={isWide ? 520 : 360} height={isWide ? 520 : 360} style={{ border: `1px solid ${THEME.border}`, borderRadius: '12px', background: '#f8fafc' }}>
+                    {/* edges */}
+                    {[...pulseWeights.entries()].map(([key, w]) => {
+                      const [a, b] = key.split('|')
+                      const pa = pulsePositions.get(a)
+                      const pb = pulsePositions.get(b)
+                      if (!pa || !pb) return null
+                      const stroke = Math.min(10, 1 + w * 0.8)
+                      return (
+                        <line key={key} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="#2563eb" strokeWidth={stroke} strokeOpacity="0.35" />
+                      )
+                    })}
+                    {/* nodes */}
+                    {pulseNodes.map(id => {
+                      const p = pulsePositions.get(id)
+                      if (!p) return null
+                      const color = sceneTurnColors.get(id) ?? '#94a3b8'
+                      return (
+                        <g key={id}>
+                          <circle cx={p.x} cy={p.y} r={12} fill={color} stroke="#0f172a" strokeWidth="0.6" />
+                          <text x={p.x} y={p.y - 16} fontSize="10" textAnchor="middle" fill={THEME.text}>
+                            {id}
+                          </text>
+                        </g>
+                      )
+                    })}
+                  </svg>
                 </div>
               )}
             </div>
