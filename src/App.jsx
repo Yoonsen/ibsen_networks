@@ -6,22 +6,35 @@ const GENDER_COLORS = {
   '?': '#555',  // ukjent
 }
 
+// Kontraststerk palett (gjenbrukes på tvers av skuespill)
 const TURN_COLORS = [
-  '#2563eb',
-  '#c026d3',
-  '#ea580c',
-  '#059669',
-  '#9333ea',
-  '#dc2626',
-  '#0891b2',
-  '#f59e0b',
-  '#14b8a6',
-  '#6366f1',
-  '#f97316',
-  '#0ea5e9',
-  '#d946ef',
-  '#22c55e',
+  '#2563eb', // blå
+  '#dc2626', // rød
+  '#059669', // grønn
+  '#d97706', // oransje
+  '#7c3aed', // lilla
+  '#0ea5e9', // cyan
+  '#d946ef', // magenta
+  '#16a34a', // mørk grønn
+  '#f97316', // lys oransje
+  '#1d4ed8', // mørk blå
+  '#e11d48', // rosa/rød
+  '#10b981', // jade
+  '#a16207', // bronse
+  '#9333ea', // fiolett
+  '#0891b2', // turkis
+  '#b91c1c', // dyp rød
+  '#22c55e', // lime
+  '#f59e0b', // gul-oransje
+  '#0f766e', // teal
+  '#4b5563', // gråblå
+  '#c026d3', // klar lilla
+  '#475569', // grå
+  '#14b8a6', // aqua
+  '#f43f5e', // korall
 ]
+
+const TURN_BAR_WIDTH = 18
 
 const THEME = {
   bg: '#f6f8fb',
@@ -893,8 +906,10 @@ const [sceneId, setSceneId] = useState('')
 const [sceneIndex, setSceneIndex] = useState(0)
 const [networkView, setNetworkView] = useState('speech')
 const [showTurnDetails, setShowTurnDetails] = useState(false)
-const [turnHover, setTurnHover] = useState(null)
-const [actTurnHover, setActTurnHover] = useState(null)
+const [turnHover, setTurnHover] = useState(null)     // stripe hover (scene)
+const [turnBarHover, setTurnBarHover] = useState(null) // bar hover (scene)
+const [actTurnHover, setActTurnHover] = useState(null) // stripe hover (act)
+const [actBarHover, setActBarHover] = useState(null)   // bar hover (act)
 
   useEffect(() => {
     fetch('./ibsen_networks.json')
@@ -1137,6 +1152,16 @@ const sceneTurnLegend = useMemo(() => {
   }
   return Array.from(map.values()).sort((a, b) => b.words - a.words)
 }, [sceneTurnsData, sceneTurnColors])
+// Bars følger turn-sekvensen (én stolpe per ytring, samme rekkefølge som stripen)
+const sceneTurnSeqBars = useMemo(() => {
+  if (!sceneTurnsData?.turns) return []
+  return sceneTurnsData.turns.map(t => ({
+    speaker: t.speaker,
+    gender: t.gender,
+    words: t.words ?? 0,
+    color: sceneTurnColors.get(t.speaker) ?? GENDER_COLORS[t.gender] ?? '#6b7280',
+  }))
+}, [sceneTurnsData, sceneTurnColors])
 const playTurnLegend = useMemo(() => {
   if (!selectedPlay?.scene_turns) return []
   const map = new Map()
@@ -1164,7 +1189,7 @@ const actTurnStrips = useMemo(() => {
   for (const entry of selectedPlay.scene_turns) {
     const actKey = entry.act ?? '?'
     if (!actMap.has(actKey)) {
-      actMap.set(actKey, { act: actKey, totalWords: 0, segments: [] })
+      actMap.set(actKey, { act: actKey, totalWords: 0, segments: [], barAgg: new Map() })
     }
     const bucket = actMap.get(actKey)
     for (const t of entry.turns ?? []) {
@@ -1178,10 +1203,17 @@ const actTurnStrips = useMemo(() => {
         color: colorForSpeaker(t.speaker, gender),
       })
       bucket.totalWords += words
+      if (!bucket.barAgg.has(t.speaker)) {
+        bucket.barAgg.set(t.speaker, { speaker: t.speaker, gender, words: 0 })
+      }
+      bucket.barAgg.get(t.speaker).words += words
     }
   }
   const acts = Array.from(actMap.values()).map(a => {
-    return { act: a.act, totalWords: a.totalWords, segments: a.segments }
+    const bars = Array.from(a.barAgg.values())
+      .map(b => ({ ...b, color: colorForSpeaker(b.speaker, b.gender) }))
+      .sort((x, y) => (y.words ?? 0) - (x.words ?? 0))
+    return { act: a.act, totalWords: a.totalWords, segments: a.segments, bars }
   })
   acts.sort((a, b) => {
     const ai = parseInt(a.act, 10)
@@ -1479,6 +1511,66 @@ const actTurnStrips = useMemo(() => {
                             </div>
                           )}
                         </div>
+                      <div style={{ marginTop: '0.55rem' }}>
+                        <div style={{ fontSize: '0.9rem', color: THEME.subtle, marginBottom: '0.2rem' }}>Stolper (én per ytring, samme rekkefølge som stripen)</div>
+                        <div
+                          style={{ display: 'flex', alignItems: 'flex-end', gap: 0, height: '110px', borderBottom: `1px solid ${THEME.border}`, paddingBottom: '0.3rem', overflowX: 'auto', position: 'relative' }}
+                          onMouseLeave={() => setActBarHover(null)}
+                        >
+                          {(() => {
+                            const bars = act.segments ?? []
+                            const maxBarWords = bars.reduce((m, b) => Math.max(m, b.words || 0), 0) || 1
+                            const maxHeight = 110
+                            return bars.map((bar, idx) => {
+                              const h = Math.max(6, (bar.words / maxBarWords) * maxHeight)
+                              return (
+                                <div key={`${bar.speaker}-${idx}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: `${TURN_BAR_WIDTH}px`, height: `${maxHeight}px`, justifyContent: 'flex-end' }}>
+                                  <div
+                                    style={{
+                                      width: '100%',
+                                      height: `${h}px`,
+                                      background: bar.color ?? colorForSpeaker(bar.speaker, bar.gender),
+                                      borderRadius: '6px 6px 2px 2px',
+                                      boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                                    }}
+                                    title={`${bar.speaker}: ${Math.round(bar.words)} ord`}
+                                    onMouseEnter={(e) => {
+                                      const parentRect = e.currentTarget.parentNode?.getBoundingClientRect()
+                                      const rect = e.currentTarget.getBoundingClientRect()
+                                      const fallbackWidth = (act.segments?.length || 0) * TURN_BAR_WIDTH
+                                      const parentWidth = parentRect?.width ?? fallbackWidth
+                                      const leftPx = parentRect ? rect.left - parentRect.left + rect.width / 2 : rect.width / 2
+                                      setActBarHover({ act: act.act, speaker: bar.speaker, words: bar.words ?? 0, leftPx, parentWidth })
+                                    }}
+                                    onMouseLeave={() => setActBarHover(null)}
+                                  />
+                                </div>
+                              )
+                            })
+                          })()}
+                          {actBarHover && actBarHover.act === act.act && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '-30px',
+                                left: `${Math.max(6, Math.min((actBarHover.parentWidth ?? 0) - 6, actBarHover.leftPx ?? 0))}px`,
+                                transform: 'translateX(-50%)',
+                                background: '#0f172a',
+                                color: '#fff',
+                                padding: '0.2rem 0.45rem',
+                                borderRadius: '8px',
+                                fontSize: '0.85rem',
+                                boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
+                                pointerEvents: 'none',
+                                whiteSpace: 'nowrap',
+                                zIndex: 5,
+                              }}
+                            >
+                              {actBarHover.speaker}: {Math.round(actBarHover.words)} ord
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       </div>
                     ))}
                   </div>
@@ -1697,7 +1789,7 @@ const actTurnStrips = useMemo(() => {
                         </button>
                       </div>
                       <div
-                        style={{ display: 'flex', height: '14px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${THEME.border}` }}
+                        style={{ display: 'flex', height: '14px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${THEME.border}`, position: 'relative' }}
                         onMouseLeave={() => setTurnHover(null)}
                       >
                         {(() => {
@@ -1716,7 +1808,13 @@ const actTurnStrips = useMemo(() => {
                                   background: col,
                                   minWidth: '4px',
                                 }}
-                                onMouseEnter={() => setTurnHover({ speaker: t.speaker, words: t.words ?? 0, pct, center })}
+                                onMouseEnter={(e) => {
+                                  const parentRect = e.currentTarget.parentNode?.getBoundingClientRect()
+                                  const rect = e.currentTarget.getBoundingClientRect()
+                                  const parentWidth = parentRect?.width ?? 0
+                                  const leftPx = parentRect ? rect.left - parentRect.left + rect.width / 2 : 0
+                                  setTurnHover({ speaker: t.speaker, words: t.words ?? 0, leftPx, parentWidth })
+                                }}
                               />
                             )
                           })
@@ -1727,7 +1825,7 @@ const actTurnStrips = useMemo(() => {
                           style={{
                             position: 'absolute',
                             top: '-34px',
-                            left: `${Math.max(4, Math.min(96, turnHover.center))}%`,
+                            left: `${Math.max(6, Math.min((turnHover.parentWidth ?? 0) - 6, turnHover.leftPx ?? 0))}px`,
                             transform: 'translateX(-50%)',
                             background: '#0f172a',
                             color: '#fff',
@@ -1737,9 +1835,75 @@ const actTurnStrips = useMemo(() => {
                             boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
                             pointerEvents: 'none',
                             whiteSpace: 'nowrap',
+                            zIndex: 6,
                           }}
                         >
                           {turnHover.speaker}: {Math.round(turnHover.words)} ord
+                        </div>
+                      )}
+                      {sceneTurnSeqBars.length > 0 && (
+                        <div style={{ marginTop: '0.6rem' }}>
+                          <div
+                            style={{ display: 'flex', alignItems: 'flex-end', gap: 0, height: '120px', borderBottom: `1px solid ${THEME.border}`, paddingBottom: '0.35rem', overflowX: 'auto', position: 'relative' }}
+                            onMouseLeave={() => setTurnBarHover(null)}
+                          >
+                            {(() => {
+                              const maxBarWords = sceneTurnSeqBars.reduce((m, b) => Math.max(m, b.words || 0), 0) || 1
+                              const maxHeight = 120
+                              return sceneTurnSeqBars.map((bar, idx) => {
+                                const h = Math.max(6, (bar.words / maxBarWords) * maxHeight)
+                                return (
+                                  <div key={`${bar.speaker}-${idx}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: `${TURN_BAR_WIDTH}px`, height: `${maxHeight}px`, justifyContent: 'flex-end' }}>
+                                    <div
+                                      style={{
+                                        width: '100%',
+                                        height: `${h}px`,
+                                        background: bar.color,
+                                        borderRadius: '6px 6px 2px 2px',
+                                        boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                                      }}
+                                      title={`${bar.speaker}: ${Math.round(bar.words)} ord`}
+                                      onMouseEnter={(e) => {
+                                        const parentRect = e.currentTarget.parentNode?.getBoundingClientRect()
+                                        const rect = e.currentTarget.getBoundingClientRect()
+                                        const fallbackWidth = sceneTurnSeqBars.length * TURN_BAR_WIDTH
+                                        const parentWidth = parentRect?.width ?? fallbackWidth
+                                        const leftPx = parentRect ? rect.left - parentRect.left + rect.width / 2 : rect.width / 2
+                                        setTurnBarHover({
+                                          speaker: bar.speaker,
+                                          words: bar.words ?? 0,
+                                          leftPx,
+                                          parentWidth,
+                                        })
+                                      }}
+                                      onMouseLeave={() => setTurnBarHover(null)}
+                                    />
+                                  </div>
+                                )
+                              })
+                            })()}
+                            {turnBarHover && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: '-34px',
+                                  left: `${Math.max(6, Math.min((turnBarHover.parentWidth ?? 0) - 6, turnBarHover.leftPx ?? 0))}px`,
+                                  transform: 'translateX(-50%)',
+                                  background: '#0f172a',
+                                  color: '#fff',
+                                  padding: '0.25rem 0.45rem',
+                                  borderRadius: '8px',
+                                  fontSize: '0.9rem',
+                                  boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
+                                  pointerEvents: 'none',
+                                  whiteSpace: 'nowrap',
+                                  zIndex: 6,
+                                }}
+                              >
+                                {turnBarHover.speaker}: {Math.round(turnBarHover.words)} ord
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                       {sceneTurnLegend.length > 0 && (
