@@ -920,6 +920,8 @@ const [pulseIndex, setPulseIndex] = useState(0)
 const [pulseSpeed, setPulseSpeed] = useState(2)
 const [pulseWeights, setPulseWeights] = useState(new Map())
 const [pulsePositions, setPulsePositions] = useState(new Map())
+const [pulseSeed, setPulseSeed] = useState(1)
+const [draggingId, setDraggingId] = useState(null)
 
   useEffect(() => {
     fetch('./ibsen_networks.json')
@@ -1193,13 +1195,15 @@ const pulseAnchors = useMemo(() => {
   const map = new Map()
   const size = isWide ? 520 : 360
   const nodes = pulseNodes.map(id => ({ id }))
-  const pos = computePositions(nodes, size, size) || new Map()
+  const seed = pulseSeed
+  const pos = computePositions(nodes.map(n => ({ ...n, id: `${n.id}-${seed}` })), size, size) || new Map()
   nodes.forEach(n => {
-    const p = pos.get(n.id)
+    // map back to original id (strip seed suffix)
+    const p = pos.get(`${n.id}-${seed}`)
     if (p) map.set(n.id, p)
   })
   return map
-}, [pulseNodes, isWide])
+}, [pulseNodes, isWide, pulseSeed])
 const pulseTurnPairs = useMemo(() => {
   const arr = []
   const turns = sceneTurnsData?.turns ?? []
@@ -2256,6 +2260,17 @@ const actTurnStrips = useMemo(() => {
                     >
                       Reset
                     </button>
+                    <button
+                      onClick={() => {
+                        setPulseSeed(s => s + 1)
+                        setPulseWeights(new Map())
+                        setPulseIndex(0)
+                        setPulsePlaying(false)
+                      }}
+                      style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', border: `1px solid ${THEME.border}`, background: '#fff', cursor: 'pointer' }}
+                    >
+                      Reroll layout
+                    </button>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: THEME.subtle }}>
                       Hastighet:
                       <input type="range" min="0.5" max="5" step="0.1" value={pulseSpeed} onChange={e => setPulseSpeed(Number(e.target.value))} />
@@ -2297,9 +2312,32 @@ const actTurnStrips = useMemo(() => {
                       const p = pulsePositions.get(id)
                       if (!p) return null
                       const color = sceneTurnColors.get(id) ?? '#94a3b8'
+                      const active = draggingId === id
                       return (
-                        <g key={id}>
-                          <circle cx={p.x} cy={p.y} r={12} fill={color} stroke="#0f172a" strokeWidth="0.6" />
+                        <g
+                          key={id}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            setDraggingId(id)
+                          }}
+                          onMouseUp={() => setDraggingId(null)}
+                          onMouseLeave={() => setDraggingId(null)}
+                          onMouseMove={(e) => {
+                            if (draggingId !== id) return
+                            const svg = e.currentTarget.closest('svg')
+                            if (!svg) return
+                            const rect = svg.getBoundingClientRect()
+                            const x = e.clientX - rect.left
+                            const y = e.clientY - rect.top
+                            setPulsePositions(prev => {
+                              const next = new Map(prev)
+                              next.set(id, { x, y })
+                              return next
+                            })
+                          }}
+                          style={{ cursor: 'grab' }}
+                        >
+                          <circle cx={p.x} cy={p.y} r={active ? 14 : 12} fill={color} stroke="#0f172a" strokeWidth="0.6" />
                           <text x={p.x} y={p.y - 16} fontSize="10" textAnchor="middle" fill={THEME.text}>
                             {id}
                           </text>
