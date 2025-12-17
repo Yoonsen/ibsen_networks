@@ -1236,6 +1236,11 @@ useEffect(() => {
 }, [sceneAct, sceneId, selectedPlay])
 
 useEffect(() => {
+  // bump seed to re-init anchors/layout when act/scene changes
+  setPulseSeed(s => s + 1)
+}, [sceneAct, sceneId])
+
+useEffect(() => {
   if (!sandboxPlaying) return
   if (!sandboxTurns || sandboxTurns.length === 0) return
   if (sandboxIndex >= sandboxTurns.length) {
