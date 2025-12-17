@@ -1,3 +1,10 @@
+# Data
+
+- TEI-XML: legg i `data/raw/plays/`
+- Parser: `data/scripts/parse_tei.py`
+  - kjør `python data/scripts/parse_tei.py --copy-to-public`
+- Output: `data/output/ibsen_networks.json` (kopieres til `public/` hvis flagget brukes)
+- Kjønn: `data/gendered_ibsen.json` kan fylles med `{navn: true|false}` for å overstyre/utfylle FEMALE_CHARACTERS før eksport.
 # Data pipeline (placeholder)
 
 Denne mappen skal inneholde Python-skriptet som genererer `public/ibsen_networks.json` fra TEI-XML. Legg inn:

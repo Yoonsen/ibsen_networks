@@ -31,3 +31,10 @@
 - Dokumentasjon/vedlikehold: data-README m/ID-normalisering (URN/dhlabid), manifest/architecture oppdatert tidligere; datastruktur-dokument flyttet til `legacy/`.
 - Scenenettverk fra dialoger (akt/scene-velger + stepper), gjenbruker globalt layout for stabilitet.
 - Plan: se på `parsed.json` og eventuelt koble inn fulltekst for utdrag og navigasjon.
+
+## 2025-12-16
+
+- Lade inn TEI-XML i `data/raw/plays/` og kjørte ny parser (`data/scripts/parse_tei.py`) som bygger `ibsen_parsed.json` og `ibsen_networks.json`; kopiert til `public/ibsen_networks.json`.
+- Oppdatert datascripts-README og parser til å bruke acts/scenes/speeches direkte fra TEI; kjører eksporten via `ibsen_networks_acts.py`.
+- Frontend: chips-toggle for tale- vs scenenettverk, scenestripe for ordfordeling per karakter og veksling (replikk-segmenter) med utvidet fargepalett per taler.
+- La inn `data/gendered_ibsen.json` som grunnfil for kjønning; `ibsen_networks_acts.py` bruker nå kun base-FEMALE_CHARACTERS + denne filen (ingen heuristikker). Regenerert nettverkene.

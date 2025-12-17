@@ -6,6 +6,23 @@ const GENDER_COLORS = {
   '?': '#555',  // ukjent
 }
 
+const TURN_COLORS = [
+  '#2563eb',
+  '#c026d3',
+  '#ea580c',
+  '#059669',
+  '#9333ea',
+  '#dc2626',
+  '#0891b2',
+  '#f59e0b',
+  '#14b8a6',
+  '#6366f1',
+  '#f97316',
+  '#0ea5e9',
+  '#d946ef',
+  '#22c55e',
+]
+
 const THEME = {
   bg: '#f6f8fb',
   card: '#ffffff',
@@ -20,6 +37,21 @@ const THEME = {
 function displayTitle(title) {
   if (!title) return ''
   return String(title).replace(/_/g, ' ')
+}
+
+function hashString(str) {
+  let h = 0
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i)
+    h |= 0
+  }
+  return h
+}
+
+function colorForSpeaker(name, gender) {
+  if (!name) return GENDER_COLORS[gender] ?? '#6b7280'
+  const idx = Math.abs(hashString(name)) % TURN_COLORS.length
+  return TURN_COLORS[idx] ?? GENDER_COLORS[gender] ?? '#6b7280'
 }
 
 function computeBechdelStatus(dialogCount = 0, noMaleCount = 0) {
@@ -78,11 +110,11 @@ function computeSpeechStats(network, femaleMap = {}, wordCounts = null) {
       if (!from || !to) return
 
       const count = Number.isFinite(e.count) ? e.count : Number.isFinite(e.weight) ? e.weight : 0
-      const avgA = e.avg_len_A ?? 0
-      const avgB = e.avg_len_B ?? 0
+      const avgA = Number.isFinite(e.avg_len_A) ? e.avg_len_A : null
+      const avgB = Number.isFinite(e.avg_len_B) ? e.avg_len_B : null
 
-      const totalA = count * avgA
-      const totalB = count * avgB
+      const totalA = avgA !== null ? count * avgA : count
+      const totalB = avgB !== null ? count * avgB : count
 
       const fromNode = ensureNode(from)
       const toNode = ensureNode(to)
@@ -104,6 +136,27 @@ function computeSpeechStats(network, femaleMap = {}, wordCounts = null) {
   nodes.sort((a, b) => b.totalLen - a.totalLen)
 
   return { nodes, edges }
+}
+
+function computeTurnSequence(dialogs, femaleMap = {}) {
+  const turns = []
+  for (const d of dialogs ?? []) {
+    const speakers = Array.isArray(d?.speakers) ? d.speakers.filter(Boolean) : []
+    if (speakers.length === 0) continue
+    const turnCount = Math.max(1, Number(d.length ?? 0))
+    const wordsPerTurn = turnCount > 0 ? (Number(d.total_words ?? 0) / turnCount) : 0
+    for (let i = 0; i < turnCount; i++) {
+      const speaker = speakers[i % speakers.length]
+      if (!speaker) continue
+      turns.push({
+        speaker,
+        gender: normalizeGender(speaker, undefined, femaleMap),
+        words: wordsPerTurn,
+      })
+    }
+  }
+  const totalWords = turns.reduce((s, t) => s + t.words, 0)
+  return { turns, totalWords }
 }
 
 function buildSceneNetwork(dialogs, femaleMap = {}) {
@@ -168,6 +221,12 @@ function computePositions(nodes = [], width = 420, height = 420) {
   return map
 }
 
+function genderSymbol(g) {
+  if (g === 'F') return '♀'
+  if (g === 'M') return '♂'
+  return ''
+}
+
 // Enkel sirkulær nettverksgraf i SVG
 function NetworkGraph({ nodes, edges, width = 420, height = 420, positions = null, dimInactive = false }) {
   if (!nodes || nodes.length === 0) return <p>Ingen noder å vise.</p>
@@ -225,28 +284,30 @@ function NetworkGraph({ nodes, edges, width = 420, height = 420, positions = nul
         const pos = nodePositions.get(node.name)
         if (!pos) return null
         const r = maxTotalLen > 0 ? 4 + 10 * ((node.totalLen ?? 0) / maxTotalLen) : 6
-        const fill = GENDER_COLORS[node.gender] ?? GENDER_COLORS['?']
+        const fill = colorForSpeaker(node.name, node.gender)
+        const sym = genderSymbol(node.gender)
+        const label = sym ? `${node.name} ${sym}` : node.name
         return (
           <g key={node.name}>
-            <circle cx={pos.x} cy={pos.y} r={r} fill={fill} />
+            <circle cx={pos.x} cy={pos.y} r={r} fill={fill} stroke="#0f172a" strokeWidth="0.6" />
             <text
               x={pos.x}
               y={pos.y - r - 4}
               fontSize="10"
               textAnchor="middle"
             >
-              {node.name}
+              {label}
             </text>
           </g>
         )
       })}
 
-      {/* liten legend */}
-      <g transform={`translate(${width - 110}, ${height - 55})`}>
-        <rect width="100" height="48" fill="white" stroke="#ddd" rx="4" />
-        <LegendRow y={14} color={GENDER_COLORS.F} label="Kvinne (F)" />
-        <LegendRow y={30} color={GENDER_COLORS.M} label="Mann (M)" />
-        <LegendRow y={46} color={GENDER_COLORS['?']} label="Ukjent" />
+      {/* liten legend: symbol forklaring */}
+      <g transform={`translate(${width - 126}, ${height - 55})`}>
+        <rect width="116" height="48" fill="white" stroke="#ddd" rx="4" />
+        <LegendRow y={14} color="#0f172a" label="♀ kvinne" />
+        <LegendRow y={30} color="#0f172a" label="♂ mann" />
+        <LegendRow y={46} color="#0f172a" label="? ukjent" />
       </g>
     </svg>
   )
@@ -282,7 +343,7 @@ function StatChip({ label, value, color = THEME.text }) {
   )
 }
 
-function NetworkSection({ title, network, femaleMap, width = 420, height = 420, wordCounts = null, positions = null, dimInactive = false }) {
+function NetworkSection({ title, network, femaleMap, width = 420, height = 420, wordCounts = null, positions = null, dimInactive = false, showWords = true, note = null }) {
   const { nodes, edges } = useMemo(() => computeSpeechStats(network, femaleMap, wordCounts), [network, femaleMap, wordCounts])
 
   return (
@@ -293,7 +354,11 @@ function NetworkSection({ title, network, femaleMap, width = 420, height = 420, 
       </p>
       <NetworkGraph nodes={nodes} edges={edges} width={width} height={height} positions={positions} dimInactive={dimInactive} />
 
-      {nodes.length > 0 && (
+      {note && (
+        <p style={{ color: THEME.subtle, fontSize: '0.9rem', marginTop: '0.5rem' }}>{note}</p>
+      )}
+
+      {showWords && nodes.length > 0 && (
         <>
           <h4 style={{ marginTop: '0.75rem' }}>Ord (topp 10)</h4>
           <table style={{ borderCollapse: 'collapse', width: '100%' }}>
@@ -826,6 +891,10 @@ const [pairSortDirAll, setPairSortDirAll] = useState('desc')
 const [sceneAct, setSceneAct] = useState('')
 const [sceneId, setSceneId] = useState('')
 const [sceneIndex, setSceneIndex] = useState(0)
+const [networkView, setNetworkView] = useState('speech')
+const [showTurnDetails, setShowTurnDetails] = useState(false)
+const [turnHover, setTurnHover] = useState(null)
+const [actTurnHover, setActTurnHover] = useState(null)
 
   useEffect(() => {
     fetch('./ibsen_networks.json')
@@ -870,12 +939,17 @@ const [sceneIndex, setSceneIndex] = useState(0)
       const femaleNodes = nodes.filter(n => normalizeGender(n.id, n.gender, femaleMap) === 'F').length
       let femaleWords = 0
       let maleWords = 0
+      let unknownWords = 0
       for (const row of p.word_counts ?? []) {
         const val = row.words ?? 0
-        if (femaleMap[row.character]) femaleWords += val
-        else maleWords += val
+        if (row.character in femaleMap) {
+          if (femaleMap[row.character]) femaleWords += val
+          else maleWords += val
+        } else {
+          unknownWords += val
+        }
       }
-      const totalWords = femaleWords + maleWords
+      const totalWords = femaleWords + maleWords + unknownWords
       const femaleShare = totalWords > 0 ? femaleWords / totalWords : 0
       const dialogCount = p.bechdel?.female_dialog_count ?? 0
       const noMaleCount = p.bechdel?.female_dialogs_no_male_pron ?? 0
@@ -886,6 +960,7 @@ const [sceneIndex, setSceneIndex] = useState(0)
         femaleNodes,
         femaleWords,
         maleWords,
+        unknownWords,
         femaleShare,
         totalWords,
         bechdelStatus,
@@ -900,10 +975,11 @@ const [sceneIndex, setSceneIndex] = useState(0)
     const totalPlays = playsWithMeta.length
     const femaleWords = playsWithMeta.reduce((s, p) => s + (p.femaleWords ?? 0), 0)
     const maleWords = playsWithMeta.reduce((s, p) => s + (p.maleWords ?? 0), 0)
+    const unknownWords = playsWithMeta.reduce((s, p) => s + (p.unknownWords ?? 0), 0)
     const bechdelPass = playsWithMeta.filter(p => p.bechdelStatus === 'bestått').length
     const bechdelFail = playsWithMeta.filter(p => p.bechdelStatus === 'ikke bestått').length
     const bechdelNR = playsWithMeta.filter(p => p.bechdelStatus === 'NR').length
-    return { totalPlays, femaleWords, maleWords, bechdelPass, bechdelFail, bechdelNR }
+    return { totalPlays, femaleWords, maleWords, unknownWords, bechdelPass, bechdelFail, bechdelNR }
   }, [playsWithMeta])
 
   useEffect(() => {
@@ -959,10 +1035,21 @@ const [sceneIndex, setSceneIndex] = useState(0)
     return result
   }, [selectedPlay])
 
-  const globalPositions = useMemo(() => {
-    const size = isWide ? 520 : 360
-    return computePositions(selectedPlay?.speech_network?.nodes ?? [], size, size)
-  }, [selectedPlay, isWide])
+const hasCoNetwork = Boolean(selectedPlay?.co_network?.nodes?.length)
+const activeNetwork =
+  networkView === 'co' && hasCoNetwork
+    ? selectedPlay?.co_network
+    : selectedPlay?.speech_network
+
+const activePositions = useMemo(() => {
+  const size = isWide ? 520 : 360
+  return computePositions(activeNetwork?.nodes ?? [], size, size)
+}, [activeNetwork, isWide])
+
+const networkNote = networkView === 'co'
+  ? 'Kantvekt = antall scener der begge står på scenen samtidig.'
+  : 'Kantvekt = taleturer A→B (replikk-sekvenser) med snittlengder.'
+const activeNodeCount = activeNetwork?.nodes?.length ?? 0
 
   const sceneSequence = useMemo(() => {
     const seq = []
@@ -997,12 +1084,113 @@ const [sceneIndex, setSceneIndex] = useState(0)
     }
   }, [sceneAct, sceneId, sceneSequence])
 
+  useEffect(() => {
+    setShowTurnDetails(false)
+  }, [sceneAct, sceneId])
+
   const sceneDialogs = useMemo(() => {
     if (!sceneAct || !sceneId) return []
     return (selectedPlay?.dialogs ?? []).filter(d => d.act === sceneAct && d.scene === sceneId && Array.isArray(d.speakers) && d.speakers.length >= 2)
   }, [selectedPlay, sceneAct, sceneId])
 
   const sceneNet = useMemo(() => buildSceneNetwork(sceneDialogs, femaleMap), [sceneDialogs, femaleMap])
+const scenePositions = useMemo(() => {
+  const size = isWide ? 520 : 360
+  return computePositions(sceneNet.network?.nodes ?? [], size, size)
+}, [sceneNet, isWide])
+const sceneTurnsData = useMemo(() => {
+  if (!selectedPlay || !sceneAct || !sceneId) return null
+  const entries = selectedPlay.scene_turns ?? []
+  const hit = entries.find(e => e.act === sceneAct && e.scene === sceneId)
+  if (!hit) return null
+  const turns = (hit.turns ?? []).map(t => ({
+    speaker: t.speaker,
+    gender: normalizeGender(t.speaker, undefined, femaleMap),
+    words: t.words ?? 0,
+  }))
+  const totalWords = turns.reduce((s, t) => s + t.words, 0)
+  return { turns, totalWords }
+}, [selectedPlay, sceneAct, sceneId, femaleMap])
+const sceneTurnColors = useMemo(() => {
+  const map = new Map()
+  for (const t of sceneTurnsData?.turns ?? []) {
+    if (!map.has(t.speaker)) {
+      map.set(t.speaker, colorForSpeaker(t.speaker, t.gender))
+    }
+  }
+  return map
+}, [sceneTurnsData])
+const sceneTurnLegend = useMemo(() => {
+  if (!sceneTurnsData?.turns) return []
+  const map = new Map()
+  for (const t of sceneTurnsData.turns) {
+    if (!map.has(t.speaker)) {
+      map.set(t.speaker, {
+        speaker: t.speaker,
+        gender: t.gender,
+        words: 0,
+        color: sceneTurnColors.get(t.speaker) ?? GENDER_COLORS[t.gender] ?? '#6b7280',
+      })
+    }
+    const rec = map.get(t.speaker)
+    rec.words += t.words ?? 0
+  }
+  return Array.from(map.values()).sort((a, b) => b.words - a.words)
+}, [sceneTurnsData, sceneTurnColors])
+const playTurnLegend = useMemo(() => {
+  if (!selectedPlay?.scene_turns) return []
+  const map = new Map()
+  for (const entry of selectedPlay.scene_turns) {
+    for (const t of entry.turns ?? []) {
+      if (!t?.speaker) continue
+      if (!map.has(t.speaker)) {
+        const gender = normalizeGender(t.speaker, undefined, femaleMap)
+        map.set(t.speaker, { speaker: t.speaker, gender, words: 0 })
+      }
+      const rec = map.get(t.speaker)
+      rec.words += t.words ?? 0
+    }
+  }
+  const rows = Array.from(map.values()).map(r => ({
+    ...r,
+    color: colorForSpeaker(r.speaker, r.gender),
+  }))
+  rows.sort((a, b) => b.words - a.words)
+  return rows
+}, [selectedPlay, femaleMap])
+const actTurnStrips = useMemo(() => {
+  if (!selectedPlay?.scene_turns) return []
+  const actMap = new Map()
+  for (const entry of selectedPlay.scene_turns) {
+    const actKey = entry.act ?? '?'
+    if (!actMap.has(actKey)) {
+      actMap.set(actKey, { act: actKey, totalWords: 0, segments: [] })
+    }
+    const bucket = actMap.get(actKey)
+    for (const t of entry.turns ?? []) {
+      if (!t?.speaker) continue
+      const gender = normalizeGender(t.speaker, undefined, femaleMap)
+      const words = t.words ?? 0
+      bucket.segments.push({
+        speaker: t.speaker,
+        gender,
+        words,
+        color: colorForSpeaker(t.speaker, gender),
+      })
+      bucket.totalWords += words
+    }
+  }
+  const acts = Array.from(actMap.values()).map(a => {
+    return { act: a.act, totalWords: a.totalWords, segments: a.segments }
+  })
+  acts.sort((a, b) => {
+    const ai = parseInt(a.act, 10)
+    const bi = parseInt(b.act, 10)
+    if (!Number.isNaN(ai) && !Number.isNaN(bi)) return ai - bi
+    return String(a.act).localeCompare(String(b.act))
+  })
+  return acts
+}, [selectedPlay, femaleMap])
 
   const pairStatsAll = useMemo(() => {
     const map = new Map()
@@ -1099,6 +1287,7 @@ const [sceneIndex, setSceneIndex] = useState(0)
               <StatChip label="NR" value={globalStats.bechdelNR} color="#475569" />
               <StatChip label="Kvinnelige ord (sum)" value={globalStats.femaleWords} />
               <StatChip label="Mannlige ord (sum)" value={globalStats.maleWords} />
+              <StatChip label="Ukjent kjønn (ord)" value={globalStats.unknownWords} color="#6b7280" />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center' }}>
@@ -1140,12 +1329,12 @@ const [sceneIndex, setSceneIndex] = useState(0)
                     )}
                     {sortKey === 'female-words' && (
                       <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>
-                        Kvinnelige ord: {p.femaleWords} · Mannlige ord: {p.maleWords}
+                        Kvinnelige ord: {p.femaleWords} · Mannlige ord: {p.maleWords} · Ukjent: {p.unknownWords}
                       </span>
                     )}
                     {sortKey === 'male-words' && (
                       <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>
-                        Mannlige ord: {p.maleWords} · Kvinnelige ord: {p.femaleWords}
+                        Mannlige ord: {p.maleWords} · Kvinnelige ord: {p.femaleWords} · Ukjent: {p.unknownWords}
                       </span>
                     )}
                     {sortKey === 'female-share' && (
@@ -1188,9 +1377,114 @@ const [sceneIndex, setSceneIndex] = useState(0)
             <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem 1.25rem', boxShadow: THEME.shadow, marginBottom: '1rem' }}>
               <h2 style={{ marginTop: 0, marginBottom: '0.35rem' }}>{displayTitle(selectedPlay.title)}</h2>
               <div style={{ color: THEME.subtle }}>
-                {selectedPlay.acts?.length ?? 0} akter &nbsp;|&nbsp; noder i globalt nettverk: {selectedPlay.speech_network?.nodes?.length ?? 0}
+                {selectedPlay.acts?.length ?? 0} akter &nbsp;|&nbsp; noder i valgt nettverk: {activeNodeCount}
               </div>
             </div>
+            {playTurnLegend.length > 0 && (
+              <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow, marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>Fargekode (hele stykket)</h3>
+                  <p style={{ margin: '0.15rem 0 0', color: THEME.subtle, fontSize: '0.95rem' }}>
+                    Stabil farge per aktør for alle scener og akter.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  {playTurnLegend.slice(0, 48).map(row => (
+                    <span
+                      key={row.speaker}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.25rem 0.45rem',
+                        borderRadius: '12px',
+                        background: '#f8fafc',
+                        border: `1px solid ${THEME.border}`,
+                        color: THEME.text,
+                        fontSize: '0.9rem',
+                      }}
+                    >
+                      <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: row.color }} />
+                      {row.speaker}
+                      <span style={{ color: THEME.subtle }}>· {Math.round(row.words)} ord</span>
+                    </span>
+                  ))}
+                  {playTurnLegend.length > 48 && (
+                    <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>… {playTurnLegend.length - 48} flere</span>
+                  )}
+                </div>
+                {actTurnStrips.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    {actTurnStrips.map(act => (
+                      <div key={act.act} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: THEME.subtle }}>
+                          <strong style={{ color: THEME.text }}>Akt {act.act}</strong>
+                          {act.totalWords > 0 && <span style={{ fontSize: '0.9rem' }}>{Math.round(act.totalWords)} ord</span>}
+                        </div>
+                        <div
+                          style={{ display: 'flex', flexWrap: 'wrap', minHeight: '12px', borderRadius: '8px', overflow: 'visible', border: `1px solid ${THEME.border}`, position: 'relative' }}
+                          onMouseLeave={() => setActTurnHover(null)}
+                        >
+                          {(() => {
+                            return act.segments.map((seg, idx) => {
+                              const pct = act.totalWords > 0 ? (seg.words / act.totalWords) * 100 : 0
+                              return (
+                                <div
+                                  key={`${seg.speaker}-${idx}`}
+                                  title={`${seg.speaker}: ${Math.round(seg.words)} ord`}
+                                  style={{
+                                    flexBasis: `${pct}%`,
+                                    flexGrow: 0,
+                                    flexShrink: 0,
+                                    minWidth: '3px',
+                                    background: seg.color,
+                                    height: '12px',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    const parentRect = e.currentTarget.parentNode?.getBoundingClientRect()
+                                    const rect = e.currentTarget.getBoundingClientRect()
+                                    const parentWidth = parentRect?.width ?? 0
+                                    const leftPx = parentRect ? rect.left - parentRect.left + rect.width / 2 : rect.width / 2
+                                    setActTurnHover({
+                                      act: act.act,
+                                      speaker: seg.speaker,
+                                      words: seg.words ?? 0,
+                                      parentWidth,
+                                      leftPx,
+                                    })
+                                  }}
+                                />
+                              )
+                            })
+                          })()}
+                          {actTurnHover && actTurnHover.act === act.act && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '-30px',
+                                left: `${Math.max(6, Math.min((actTurnHover.parentWidth ?? 0) - 6, actTurnHover.leftPx ?? 0))}px`,
+                                transform: 'translateX(-50%)',
+                                background: '#0f172a',
+                                color: '#fff',
+                                padding: '0.2rem 0.45rem',
+                                borderRadius: '8px',
+                                fontSize: '0.85rem',
+                                boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
+                                pointerEvents: 'none',
+                                whiteSpace: 'nowrap',
+                                zIndex: 5,
+                              }}
+                            >
+                              {actTurnHover.speaker}: {Math.round(actTurnHover.words)} ord
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div
               style={
@@ -1200,12 +1494,45 @@ const [sceneIndex, setSceneIndex] = useState(0)
               }
             >
               <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: '12px', padding: '1rem', boxShadow: THEME.shadow }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  {[
+                    { key: 'speech', label: 'Talenettverk', desc: 'replikk-sekvenser' },
+                    { key: 'co', label: 'Scenenettverk', desc: 'på scenen sammen' },
+                  ].map(tab => {
+                    const isActive = networkView === tab.key
+                    const isDisabled = tab.key === 'co' && !hasCoNetwork
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setNetworkView(tab.key)}
+                        disabled={isDisabled}
+                        style={{
+                          padding: '0.45rem 0.85rem',
+                          borderRadius: '999px',
+                          border: `1px solid ${isActive ? THEME.accent : THEME.border}`,
+                          background: isActive ? THEME.accentSoft : '#fff',
+                          color: isActive ? THEME.accent : THEME.text,
+                          cursor: isDisabled ? 'not-allowed' : 'pointer',
+                          opacity: isDisabled ? 0.5 : 1,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {tab.label}
+                        <span style={{ color: THEME.subtle, fontWeight: 400 }}> · {tab.desc}</span>
+                        {isDisabled ? ' (mangler data)' : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+
                 <NetworkSection
-                  title="Globalt talenettverk"
-                  network={selectedPlay.speech_network}
+                  title={networkView === 'co' ? 'Globalt scenenettverk' : 'Globalt talenettverk'}
+                  network={activeNetwork}
                   femaleMap={femaleMap}
-                  positions={globalPositions}
-                  wordCounts={selectedPlay.word_counts}
+                  positions={activePositions}
+                  wordCounts={networkView === 'speech' ? selectedPlay.word_counts : null}
+                  showWords={networkView === 'speech'}
+                  note={networkNote}
                   width={isWide ? 520 : 360}
                   height={isWide ? 520 : 360}
                 />
@@ -1350,12 +1677,128 @@ const [sceneIndex, setSceneIndex] = useState(0)
               </div>
               {sceneAct && sceneId && sceneDialogs.length > 0 ? (
                 <div style={{ marginTop: '0.75rem' }}>
+                  {sceneTurnsData?.totalWords > 0 && (
+                    <div style={{ marginBottom: '0.75rem', position: 'relative' }}>
+                      <h4 style={{ margin: 0, marginBottom: '0.35rem' }}>Vekslinger (per replikk)</h4>
+                      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                        <button
+                          onClick={() => setShowTurnDetails(v => !v)}
+                          style={{
+                            padding: '0.35rem 0.6rem',
+                            borderRadius: '999px',
+                            border: `1px solid ${THEME.border}`,
+                            background: showTurnDetails ? THEME.accentSoft : '#fff',
+                            color: showTurnDetails ? THEME.accent : THEME.text,
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                          }}
+                        >
+                          {showTurnDetails ? 'Skjul detaljer' : 'Vis detaljer'}
+                        </button>
+                      </div>
+                      <div
+                        style={{ display: 'flex', height: '14px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${THEME.border}` }}
+                        onMouseLeave={() => setTurnHover(null)}
+                      >
+                        {(() => {
+                          let acc = 0
+                          return sceneTurnsData.turns.map((t, idx) => {
+                            const pct = sceneTurnsData.totalWords > 0 ? (t.words / sceneTurnsData.totalWords) * 100 : 0
+                            const col = sceneTurnColors.get(t.speaker) ?? GENDER_COLORS[t.gender] ?? '#6b7280'
+                            const center = acc + pct / 2
+                            acc += pct
+                            return (
+                              <div
+                                key={idx}
+                                title={`${t.speaker}: ca ${Math.round(t.words)} ord`}
+                                style={{
+                                  width: `${pct}%`,
+                                  background: col,
+                                  minWidth: '4px',
+                                }}
+                                onMouseEnter={() => setTurnHover({ speaker: t.speaker, words: t.words ?? 0, pct, center })}
+                              />
+                            )
+                          })
+                        })()}
+                      </div>
+                      {turnHover && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '-34px',
+                            left: `${Math.max(4, Math.min(96, turnHover.center))}%`,
+                            transform: 'translateX(-50%)',
+                            background: '#0f172a',
+                            color: '#fff',
+                            padding: '0.25rem 0.45rem',
+                            borderRadius: '8px',
+                            fontSize: '0.9rem',
+                            boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
+                            pointerEvents: 'none',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {turnHover.speaker}: {Math.round(turnHover.words)} ord
+                        </div>
+                      )}
+                      {sceneTurnLegend.length > 0 && (
+                        <div style={{ marginTop: '0.4rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+                          <span style={{ color: THEME.subtle, fontSize: '0.9rem' }}>Fargekode:</span>
+                          {sceneTurnLegend.map(row => (
+                            <span
+                              key={row.speaker}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.25rem 0.4rem',
+                                borderRadius: '12px',
+                                background: '#f8fafc',
+                                border: `1px solid ${THEME.border}`,
+                                color: THEME.text,
+                                fontSize: '0.9rem',
+                              }}
+                            >
+                              <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: row.color }} />
+                              {row.speaker}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {showTurnDetails && (
+                        <div style={{ marginTop: '0.45rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                          {sceneTurnLegend.map(row => (
+                            <span
+                              key={row.speaker}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                padding: '0.28rem 0.45rem',
+                                borderRadius: '12px',
+                                background: '#f8fafc',
+                                border: `1px solid ${THEME.border}`,
+                                color: THEME.text,
+                                fontSize: '0.9rem',
+                              }}
+                            >
+                              <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: row.color }} />
+                              {row.speaker}: {Math.round(row.words)} ord
+                              {sceneTurnsData.totalWords > 0 ? ` (${Math.round((row.words / sceneTurnsData.totalWords) * 100)}%)` : ''}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <NetworkSection
                     title={`Akt ${sceneAct}, scene ${sceneId}`}
                     network={sceneNet.network}
                     femaleMap={femaleMap}
                     wordCounts={sceneNet.wordCounts}
-                    positions={globalPositions}
+                    positions={scenePositions}
                     width={isWide ? 520 : 360}
                     height={isWide ? 520 : 360}
                   />
